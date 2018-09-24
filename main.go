@@ -1,61 +1,67 @@
 package main
 
 import (
+	"encoding/binary"
 	"fmt"
-	"net"
+	"io"
+	"os"
+
+	"github.com/wangxuesong/tcpshadow/cmd"
+	"github.com/wangxuesong/tcpshadow/model"
 )
 
+type SavePackage struct {
+	number  int
+	Forware model.DataForward
+	length  int
+	Buffer  []byte
+}
+
+func readPackages() []SavePackage {
+	file, err := os.Open("./aaa")
+	if err != nil {
+		panic(err)
+	}
+	defer file.Close()
+
+	packages := make([]SavePackage, 0, 30)
+
+	for {
+		var header struct {
+			Index   uint16
+			Forward uint8
+			Length  uint32
+		}
+		err := binary.Read(file, binary.LittleEndian, &header)
+		if err == io.EOF {
+			return packages
+		}
+		if err != nil {
+			panic(err)
+		}
+		fmt.Println(header)
+		index := int(header.Index)
+		forward := model.DataForward(header.Forward)
+		length := int(header.Length)
+		buf := make([]byte, length)
+		data := SavePackage{
+			number:  index,
+			Forware: forward,
+			length:  length,
+			Buffer:  buf,
+		}
+		count, err := file.Read(data.Buffer)
+		fmt.Println(index, forward, length, count)
+		fmt.Println(data)
+		if err != nil {
+			return packages
+		}
+		packages = append(packages, data)
+	}
+}
+
 func main() {
-	fmt.Println("Start....")
-
-	clientConn, err := net.Listen("tcp4", ":9088")
-	if err != nil {
-		panic(err)
-	}
-
-	for {
-		conn, err := clientConn.Accept()
-		if err != nil {
-			panic(err)
-		}
-
-		go connectServer(conn)
-	}
-}
-func connectServer(client net.Conn) {
-	if client == nil {
-		return
-	}
-
-	fmt.Println("Connect to server")
-
-	server, err := net.Dial("tcp4", "info:9088")
-	if err != nil {
-		panic(err)
-	}
-
-	go readFromServer(client, server)
-
-	buf := make([]byte, 16384)
-	for {
-		// fmt.Println("Read from client")
-		cnt, err := client.Read(buf)
-		if err != nil {
-			panic(err)
-		}
-		fmt.Printf("C->S: %#v\n", buf[:cnt])
-		server.Write(buf[:cnt])
-	}
-}
-func readFromServer(client net.Conn, server net.Conn) {
-	buf := make([]byte, 16384)
-	for {
-		// fmt.Println("Read from server")
-		cnt, err := server.Read(buf)
-		if err != nil {
-			panic(err)
-		}
-		fmt.Printf("S->C: %#v\n", buf[:cnt])
-		client.Write(buf[:cnt])
-	}
+	cmd.Execute()
+	//readPackages()
+	//capture()
 }
