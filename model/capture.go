@@ -21,3 +21,10 @@ func (f DataForward) String() string {
 	return names[f]
 }
 
+type SavePackage struct {
+	Number  int
+	Forward DataForward
+	Length  int
+	Buffer  []byte
+}
+

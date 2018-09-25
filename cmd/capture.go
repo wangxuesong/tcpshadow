@@ -35,7 +35,7 @@ var captureCmd = &cobra.Command{
 	Long:         `Capture tcp data`,
 	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		fmt.Println("capture called")
+		//fmt.Println("capture called")
 		capture()
 		return errors.New("abc")
 	},

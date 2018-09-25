@@ -2,20 +2,22 @@ package main
 
 import (
 	"fmt"
-	capture2 "github.com/wangxuesong/tcpshadow/model"
 	"net"
 	"testing"
+
+	"github.com/wangxuesong/tcpshadow/cmd"
+	"github.com/wangxuesong/tcpshadow/model"
 
 	"github.com/stretchr/testify/assert"
 )
 
 func TestServer(t *testing.T) {
-	datas := readPackages()
+	datas := cmd.ReadPackages()
 	// count := len(datas)
 	// index := 0
 	// nextServerResponse := func(index int) SavePackage {
 	// 	for i := index; i < count; i++ {
-	// 		if datas[i].Forware == ServerToClient {
+	// 		if datas[i].Forward == ServerToClient {
 	// 			return datas[i]
 	// 		}
 	// 	}
@@ -23,7 +25,7 @@ func TestServer(t *testing.T) {
 	// }
 	// nextClientResponse := func(index int) SavePackage {
 	// 	for i := index; i < count; i++ {
-	// 		if datas[i].Forware == ClientToServer {
+	// 		if datas[i].Forward == ClientToServer {
 	// 			return datas[i]
 	// 		}
 	// 	}
@@ -40,20 +42,20 @@ func TestServer(t *testing.T) {
 	}
 
 	for _, d := range datas {
-		switch d.Forware {
-		case capture2.ClientToServer:
+		switch d.Forward {
+		case model.ClientToServer:
 			buf := make([]byte, 16384)
 			cnt, err := client.Read(buf)
 			if err != nil {
 				panic(err)
 			}
-			if d.number == 0 {
+			if d.Number == 0 {
 				continue
 			}
 			assert.ElementsMatch(t, d.Buffer, buf[:cnt], func() string {
 				return fmt.Sprintf("acutaled: %#v\n", d.Buffer)
 			}())
-		case capture2.ServerToClient:
+		case model.ServerToClient:
 			client.Write(d.Buffer)
 		}
 	}
