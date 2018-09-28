@@ -15,27 +15,33 @@
 package cmd
 
 import (
+	"bytes"
 	"encoding/binary"
 	"fmt"
-	"github.com/spf13/cobra"
-	"github.com/wangxuesong/tcpshadow/model"
 	"io"
+	"io/ioutil"
 	"net"
 	"os"
+
+	"github.com/spf13/cobra"
+	"github.com/wangxuesong/tcpshadow/model"
 )
 
 // serverCmd represents the server command
 var serverCmd = &cobra.Command{
 	Use:   "server",
 	Short: "Server response",
-	Long: `Server response`,
+	Long:  `Server response`,
 	Run: func(cmd *cobra.Command, args []string) {
 		//fmt.Println("server called")
 		datas := ReadPackages()
+		fmt.Println("Start...")
+		fmt.Printf("Listen: %s\n", listenAddress)
 		clientConn, err := net.Listen("tcp4", listenAddress)
 		if err != nil {
 			panic(err)
 		}
+		defer clientConn.Close()
 		client, err := clientConn.Accept()
 		if err != nil {
 			panic(err)
@@ -53,6 +59,13 @@ var serverCmd = &cobra.Command{
 					continue
 				}
 			case model.ServerToClient:
+				if d.Number == 30 {
+					tuple := model.NewSmallIntTuple(0, 12)
+					buf, _:=tuple.Pack()
+					client.Write(buf)
+					client.Write(d.Buffer[len(buf):])
+					continue
+				}
 				client.Write(d.Buffer)
 			}
 		}
@@ -80,12 +93,19 @@ func init() {
 	serverCmd.Flags().StringVarP(&inputFile, "input", "i", "", "input file")
 	serverCmd.MarkFlagRequired("input")
 }
+
 func ReadPackages() []model.SavePackage {
 	file, err := os.Open(inputFile)
 	if err != nil {
 		panic(err)
 	}
 	defer file.Close()
+	buf, err :=ioutil.ReadAll(file)
+	if err != nil {
+		panic(err)
+	}
+
+	reader := bytes.NewReader(buf)
 
 	packages := make([]model.SavePackage, 0, 30)
 
@@ -95,14 +115,14 @@ func ReadPackages() []model.SavePackage {
 			Forward uint8
 			Length  uint32
 		}
-		err := binary.Read(file, binary.LittleEndian, &header)
+		err := binary.Read(reader, binary.LittleEndian, &header)
 		if err == io.EOF {
 			return packages
 		}
 		if err != nil {
 			panic(err)
 		}
-		fmt.Println(header)
+		// fmt.Println(header)
 		index := int(header.Index)
 		forward := model.DataForward(header.Forward)
 		length := int(header.Length)
@@ -113,8 +133,8 @@ func ReadPackages() []model.SavePackage {
 			Length:  length,
 			Buffer:  buf,
 		}
-		count, err := file.Read(data.Buffer)
-		fmt.Println(index, forward, length, count)
+		_, err = reader.Read(data.Buffer)
+		// fmt.Println(index, forward, length, count)
 		fmt.Println(data)
 		if err != nil {
 			return packages
@@ -122,4 +142,3 @@ func ReadPackages() []model.SavePackage {
 		packages = append(packages, data)
 	}
 }
-

@@ -71,6 +71,7 @@ func capture() {
 	if err != nil {
 		panic(err)
 	}
+	defer clientConn.Close()
 	for {
 		client, err := clientConn.Accept()
 		if err != nil {
