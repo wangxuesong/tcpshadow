@@ -2,11 +2,10 @@ package main
 
 import (
 	"fmt"
-	"net"
-	"testing"
-
 	"github.com/wangxuesong/tcpshadow/cmd"
 	"github.com/wangxuesong/tcpshadow/model"
+	"net"
+	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
