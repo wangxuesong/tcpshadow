@@ -60,20 +60,100 @@ func CreateDescribeTransmission() (SqliTransmission, error) {
 	trans := make([]SqliCommand, 0, 4)
 	trans = append(trans, &SqliDescribe{})
 	trans = append(trans, &SqliDone{})
-	trans = append(trans, &SqliCost{EstimatedRows:1, EstimatedIO:1})
+	trans = append(trans, &SqliCost{EstimatedRows: 1, EstimatedIO: 1})
 	trans = append(trans, &SqliEot{})
 	return trans, nil
 }
 
+//SqliDescribe SQ_DESCRIBE 8
 type SqliDescribe struct {
+	StatementType uint16
+	StatementID   uint16
+	EstimatedCost uint32
+	TupleSize     uint16
+	CountOfFields uint16
+	StringTable   uint32
+	Fields        []SqliField
 }
 
 func (*SqliDescribe) Command() uint16 {
 	return 8
 }
 
-func (*SqliDescribe) Pack() ([]byte, error) {
-	panic("implement me")
+func (sq *SqliDescribe) Pack() ([]byte, error) {
+	fieldsBuf := new(bytes.Buffer)
+	fieldsPacker := binpacker.NewPacker(binary.BigEndian, fieldsBuf)
+	err :=sq.packFields(fieldsPacker)
+	if err != nil {
+		return nil, err
+	}
+	stringTableBuf:=new(bytes.Buffer)
+	strTabPacker := binpacker.NewPacker(binary.BigEndian, stringTableBuf)
+	strTable, err :=sq.packStringTable(strTabPacker)
+	if err != nil {
+		return nil, err
+	}
+	sq.CountOfFields = uint16(len(sq.Fields))
+	sq.StringTable = strTable
+	buffer := new(bytes.Buffer)
+	packer := binpacker.NewPacker(binary.BigEndian, buffer)
+	packer.PushUint16(sq.Command()).
+		PushUint16(sq.StatementType).
+		PushUint16(sq.StatementID).
+		PushUint32(sq.EstimatedCost).
+		PushUint16(sq.TupleSize).
+		PushUint16(sq.CountOfFields).
+		PushUint32(sq.StringTable)
+
+	fieldsBuf.WriteTo(buffer)
+	stringTableBuf.WriteTo(buffer)
+
+	return buffer.Bytes(), packer.Error()
+}
+
+func (sq *SqliDescribe) packStringTable(packer *binpacker.Packer) (uint32, error) {
+	count := 0
+	for _, f := range sq.Fields {
+		packer.PushString(f.Name)
+		packer.PushByte(0)
+		count += len(f.Name) + 1
+	}
+	if count%2 != 0 {
+		packer.PushByte(0)
+	}
+
+	return uint32(count), packer.Error()
+}
+
+func (sq *SqliDescribe) packFields(packer *binpacker.Packer) (error) {
+	for _, f := range sq.Fields {
+		packer.PushUint32(f.FieldIndex).
+			PushUint32(f.ColumnStartPos).
+			PushUint16(f.ColumnType).
+			PushUint32(f.ColumnExtendedBuiltinId).
+			PushUint16(f.OwnerName).
+			PushUint16(f.ExtendedName).
+			PushUint16(f.Reference).
+			PushUint16(f.Alignment).
+			PushUint32(f.SourceType).
+			PushUint32(f.Length)
+	}
+
+	return packer.Error()
+}
+
+type SqliField struct {
+	FieldIndex              uint32
+	ColumnStartPos          uint32
+	ColumnType              uint16
+	ColumnExtendedBuiltinId uint32
+	OwnerName               uint16
+	ExtendedName            uint16
+	Reference               uint16
+	Alignment               uint16
+	SourceType              uint32
+	Length                  uint32
+	Name                    string
 }
 
 //SqliDone SQ_DONE 15
