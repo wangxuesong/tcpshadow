@@ -11,6 +11,18 @@ type TupleValue interface {
 	PackTupleValue(writer io.Writer) (error)
 }
 
+type TupleValues []TupleValue
+
+func (tv *TupleValues) PackTupleValue(writer io.Writer) (error) {
+	for _, v := range *tv {
+		err := v.PackTupleValue(writer)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 type SqliCommand interface {
 	Command() uint16
 	Pack() ([]byte, error)
@@ -19,12 +31,8 @@ type SqliCommand interface {
 type SqliTransmission []SqliCommand
 
 func (t *SqliTransmission) Pack() ([]byte, error) {
-	source := []byte{0, 8, 0, 2, 0, 0, 0, 0, 0, 0, 0, 55, 0, 2, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 2, 0, 0, 0, 4, 0, 13, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 50, 97, 0, 98, 0, 0, 15, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 55, 0, 0, 0, 1, 0, 0, 0, 1, 0, 12}
 	temp := new(bytes.Buffer)
-	for i, cmd := range *t {
-		if i == 0 {
-			continue
-		}
+	for _, cmd := range *t {
 		buf, err := cmd.Pack()
 		if err != nil {
 			return nil, err
@@ -32,7 +40,6 @@ func (t *SqliTransmission) Pack() ([]byte, error) {
 		temp.Write(buf)
 	}
 	buffer := new(bytes.Buffer)
-	buffer.Write(source[:len(source)-temp.Len()])
 	buffer.Write(temp.Bytes())
 	return buffer.Bytes(), nil
 }
@@ -40,7 +47,7 @@ func (t *SqliTransmission) Pack() ([]byte, error) {
 //SqliTuple SQ_TUPLE 14
 type SqliTuple struct {
 	Warnings uint16
-	Value    TupleValue
+	Values   TupleValues
 }
 
 func (sq *SqliTuple) Command() uint16 {
@@ -52,13 +59,35 @@ func (sq *SqliTuple) Pack() ([]byte, error) {
 	packer := binpacker.NewPacker(binary.BigEndian, buffer)
 	packer.PushUint16(sq.Command())
 	packer.PushUint16(sq.Warnings)
-	sq.Value.PackTupleValue(buffer)
+	sq.Values.PackTupleValue(buffer)
 	return buffer.Bytes(), nil
 }
 
-func CreateDescribeTransmission() (SqliTransmission, error) {
+func NewDescribeTransmission() (SqliTransmission, error) {
 	trans := make([]SqliCommand, 0, 4)
-	trans = append(trans, &SqliDescribe{})
+	desc := SqliDescribe{
+		StatementType: 2,
+		StatementID:   0,
+		EstimatedCost: 0,
+		TupleSize:     55,
+	}
+	field1 := SqliField{
+		FieldIndex:     0,
+		ColumnStartPos: 0,
+		ColumnType:     2,
+		Length:         4,
+		Name:           "a",
+	}
+	desc.Fields = append(desc.Fields, field1)
+	field2 := SqliField{
+		FieldIndex:     2,
+		ColumnStartPos: 4,
+		ColumnType:     13,
+		Length:         50,
+		Name:           "b",
+	}
+	desc.Fields = append(desc.Fields, field2)
+	trans = append(trans, &desc)
 	trans = append(trans, &SqliDone{})
 	trans = append(trans, &SqliCost{EstimatedRows: 1, EstimatedIO: 1})
 	trans = append(trans, &SqliEot{})
@@ -82,14 +111,12 @@ func (*SqliDescribe) Command() uint16 {
 
 func (sq *SqliDescribe) Pack() ([]byte, error) {
 	fieldsBuf := new(bytes.Buffer)
-	fieldsPacker := binpacker.NewPacker(binary.BigEndian, fieldsBuf)
-	err :=sq.packFields(fieldsPacker)
+	err := sq.packFields(fieldsBuf)
 	if err != nil {
 		return nil, err
 	}
-	stringTableBuf:=new(bytes.Buffer)
-	strTabPacker := binpacker.NewPacker(binary.BigEndian, stringTableBuf)
-	strTable, err :=sq.packStringTable(strTabPacker)
+	stringTableBuf := new(bytes.Buffer)
+	strTable, err := sq.packStringTable(stringTableBuf)
 	if err != nil {
 		return nil, err
 	}
@@ -111,7 +138,8 @@ func (sq *SqliDescribe) Pack() ([]byte, error) {
 	return buffer.Bytes(), packer.Error()
 }
 
-func (sq *SqliDescribe) packStringTable(packer *binpacker.Packer) (uint32, error) {
+func (sq *SqliDescribe) packStringTable(writer io.Writer) (uint32, error) {
+	packer := binpacker.NewPacker(binary.BigEndian, writer)
 	count := 0
 	for _, f := range sq.Fields {
 		packer.PushString(f.Name)
@@ -125,7 +153,8 @@ func (sq *SqliDescribe) packStringTable(packer *binpacker.Packer) (uint32, error
 	return uint32(count), packer.Error()
 }
 
-func (sq *SqliDescribe) packFields(packer *binpacker.Packer) (error) {
+func (sq *SqliDescribe) packFields(writer io.Writer) (error) {
+	packer := binpacker.NewPacker(binary.BigEndian, writer)
 	for _, f := range sq.Fields {
 		packer.PushUint32(f.FieldIndex).
 			PushUint32(f.ColumnStartPos).
@@ -216,7 +245,7 @@ type SmallIntTupleValue struct {
 
 func NewSmallIntTuple(warn uint16, value int16) SqliTuple {
 	tvalue := SmallIntTupleValue{length: 2, Value: value}
-	return SqliTuple{Warnings: warn, Value: &tvalue}
+	return SqliTuple{Warnings: warn, Values: []TupleValue{&tvalue}}
 }
 
 func (v *SmallIntTupleValue) PackTupleValue(writer io.Writer) error {

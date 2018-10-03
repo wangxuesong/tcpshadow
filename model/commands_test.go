@@ -85,7 +85,7 @@ func TestSqliCost_Pack(t *testing.T) {
 func TestSqliTransmission_Pack(t *testing.T) {
 	expect := []byte{0, 8, 0, 2, 0, 0, 0, 0, 0, 0, 0, 55, 0, 2, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 2, 0, 0, 0, 4, 0, 13, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 50, 97, 0, 98, 0, 0, 15, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 55, 0, 0, 0, 1, 0, 0, 0, 1, 0, 12}
 	size := len(expect)
-	trans, err := CreateDescribeTransmission()
+	trans, err := NewDescribeTransmission()
 	assert.NoError(t, err)
 	assert.Equal(t, 4, len(trans))
 	assert.EqualValues(t, 8, trans[0].Command())  // SQ_DESCRIBE

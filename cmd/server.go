@@ -59,19 +59,19 @@ var serverCmd = &cobra.Command{
 					continue
 				}
 			case model.ServerToClient:
-				if d.Number == 50 {
-					tuple := model.NewSmallIntTuple(0, 1122)
-					buf, _:=tuple.Pack()
-					client.Write(buf)
-					client.Write(d.Buffer[len(buf):])
-					continue
-				}
-				if d.Number == 28 {
-					trans, _ := model.CreateDescribeTransmission()
-					buf, _ := trans.Pack()
-					client.Write(buf)
-					continue
-				}
+				//if d.Number == 50 {
+				//	tuple := model.NewSmallIntTuple(0, 1122)
+				//	buf, _:=tuple.Pack()
+				//	client.Write(buf)
+				//	client.Write(d.Buffer[len(buf):])
+				//	continue
+				//}
+				//if d.Number == 28 {
+				//	trans, _ := model.NewDescribeTransmission()
+				//	buf, _ := trans.Pack()
+				//	client.Write(buf)
+				//	continue
+				//}
 				client.Write(d.Buffer)
 			}
 		}
