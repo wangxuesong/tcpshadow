@@ -11,10 +11,10 @@ import (
 func TestSqTuple_Pack(t *testing.T) {
 	expect := []byte{0, 14, 0, 0, 0, 0, 0, 15, 0, 11, 0, 0, 0, 0, 8, 115, 119, 101, 101, 116, 104, 117, 105, 0}
 
-	intvalue := &SmallIntTupleValue{Value:11}
-	varcharvalue := &LVarcharTupleValue{Value:"sweethui"}
+	intvalue := &SmallIntTupleValue{Value: 11}
+	varcharvalue := &LVarcharTupleValue{Value: "sweethui"}
 	sq := SqliTuple{
-		Warnings:0,
+		Warnings: 0,
 	}
 	sq.Values = append(sq.Values, intvalue)
 	sq.Values = append(sq.Values, varcharvalue)
@@ -42,8 +42,6 @@ func TestSqliDescribe_Pack(t *testing.T) {
 		StatementID:   0,
 		EstimatedCost: 0,
 		TupleSize:     55,
-		//CountOfFields: 2,
-		//StringTable:   4,
 	}
 	field1 := SqliField{
 		FieldIndex:     0,

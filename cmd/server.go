@@ -32,55 +32,51 @@ var serverCmd = &cobra.Command{
 	Use:   "server",
 	Short: "Server response",
 	Long:  `Server response`,
-	Run: func(cmd *cobra.Command, args []string) {
-		//fmt.Println("server called")
-		datas := ReadPackages()
-		fmt.Println("Start...")
-		fmt.Printf("Listen: %s\n", listenAddress)
-		clientConn, err := net.Listen("tcp4", listenAddress)
-		if err != nil {
-			panic(err)
-		}
-		defer clientConn.Close()
-		client, err := clientConn.Accept()
-		if err != nil {
-			panic(err)
-		}
-
-		for _, d := range datas {
-			switch d.Forward {
-			case model.ClientToServer:
-				buf := make([]byte, 16384)
-				_, err := client.Read(buf)
-				if err != nil {
-					panic(err)
-				}
-				if d.Number == 0 {
-					continue
-				}
-			case model.ServerToClient:
-				//if d.Number == 50 {
-				//	tuple := model.NewSmallIntTuple(0, 1122)
-				//	buf, _:=tuple.Pack()
-				//	client.Write(buf)
-				//	client.Write(d.Buffer[len(buf):])
-				//	continue
-				//}
-				//if d.Number == 28 {
-				//	trans, _ := model.NewDescribeTransmission()
-				//	buf, _ := trans.Pack()
-				//	client.Write(buf)
-				//	continue
-				//}
-				client.Write(d.Buffer)
-			}
-		}
-	},
+	Run:   runServerCommand,
 }
 
 var (
 	inputFile string
+	intercept bool
 )
+
+func runServerCommand(cmd *cobra.Command, args []string) {
+	//fmt.Println("server called")
+	datas := ReadPackages()
+	fmt.Println("Start...")
+	fmt.Printf("Listen: %s\n", listenAddress)
+	clientConn, err := net.Listen("tcp4", listenAddress)
+	if err != nil {
+		panic(err)
+	}
+	defer clientConn.Close()
+	client, err := clientConn.Accept()
+	if err != nil {
+		panic(err)
+	}
+
+	filter := model.NewInterceptor()
+
+	for _, d := range datas {
+		switch d.Forward {
+		case model.ClientToServer:
+			buf := make([]byte, 16384)
+			_, err := client.Read(buf)
+			if err != nil {
+				panic(err)
+			}
+			filter.Match(&d)
+		case model.ServerToClient:
+			var buffer []byte
+			if intercept {
+				buffer = filter.Intercept(&d)
+			} else {
+				buffer = d.Buffer
+			}
+			client.Write(buffer)
+		}
+	}
+}
 
 func init() {
 	rootCmd.AddCommand(serverCmd)
@@ -98,6 +94,7 @@ func init() {
 	serverCmd.MarkFlagRequired("listen")
 	serverCmd.Flags().StringVarP(&inputFile, "input", "i", "", "input file")
 	serverCmd.MarkFlagRequired("input")
+	serverCmd.Flags().BoolVarP(&intercept, "intercept", "f", false, "intercept message")
 }
 
 func ReadPackages() []model.SavePackage {

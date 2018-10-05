@@ -8,13 +8,13 @@ import (
 )
 
 type TupleValue interface {
-	PackTupleValue(writer io.Writer) (error)
+	PackTupleValue(writer io.Writer) error
 	Size() int64
 }
 
 type TupleValues []TupleValue
 
-func (tv *TupleValues) PackTupleValue(writer io.Writer) (error) {
+func (tv *TupleValues) PackTupleValue(writer io.Writer) error {
 	for _, v := range *tv {
 		err := v.PackTupleValue(writer)
 		if err != nil {
@@ -43,6 +43,30 @@ func (t *SqliTransmission) Pack() ([]byte, error) {
 	buffer := new(bytes.Buffer)
 	buffer.Write(temp.Bytes())
 	return buffer.Bytes(), nil
+}
+
+//SqliPrepare SQ_PREPARE 2
+type SqliPrepare struct {
+	QMarks uint16
+	Sql    string
+}
+
+func (*SqliPrepare) Command() uint16 {
+	return 2
+}
+
+func (sq *SqliPrepare) Pack() ([]byte, error) {
+	buffer := new(bytes.Buffer)
+	packer := binpacker.NewPacker(binary.BigEndian, buffer)
+	packer.PushUint16(sq.Command())
+	packer.PushUint16(sq.QMarks)
+	packer.PushUint32(uint32(len(sq.Sql)))
+	packer.PushBytes([]byte(sq.Sql))
+	if len(sq.Sql)%2 == 1 {
+		packer.PushByte(0)
+	}
+
+	return buffer.Bytes(), packer.Error()
 }
 
 //SqliTuple SQ_TUPLE 14
@@ -164,7 +188,7 @@ func (sq *SqliDescribe) packStringTable(writer io.Writer) (uint32, error) {
 	return uint32(count), packer.Error()
 }
 
-func (sq *SqliDescribe) packFields(writer io.Writer) (error) {
+func (sq *SqliDescribe) packFields(writer io.Writer) error {
 	packer := binpacker.NewPacker(binary.BigEndian, writer)
 	for _, f := range sq.Fields {
 		packer.PushUint32(f.FieldIndex).
@@ -271,14 +295,14 @@ func (v *SmallIntTupleValue) PackTupleValue(writer io.Writer) error {
 }
 
 type LVarcharTupleValue struct {
-	Value  string
+	Value string
 }
 
 func (v *LVarcharTupleValue) Size() int64 {
 	return int64(len(v.Value)) + 5
 }
 
-func (v *LVarcharTupleValue) PackTupleValue(writer io.Writer) (error) {
+func (v *LVarcharTupleValue) PackTupleValue(writer io.Writer) error {
 	packer := binpacker.NewPacker(binary.BigEndian, writer)
 	packer.PushByte(0) // 长度最高字节,暂时只支持4字节，协议支持5字节
 	packer.PushUint32(uint32(len(v.Value)))
