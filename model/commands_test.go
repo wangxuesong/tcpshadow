@@ -9,18 +9,19 @@ import (
 )
 
 func TestSqTuple_Pack(t *testing.T) {
-	expect := new(bytes.Buffer)
-	packer := binpacker.NewPacker(binary.BigEndian, expect)
-	packer.PushUint16(14)
-	packer.PushUint16(0)
-	packer.PushUint32(2)
-	packer.PushUint16(11)
+	expect := []byte{0, 14, 0, 0, 0, 0, 0, 15, 0, 11, 0, 0, 0, 0, 8, 115, 119, 101, 101, 116, 104, 117, 105, 0}
 
-	sq := NewSmallIntTuple(0, 11)
+	intvalue := &SmallIntTupleValue{Value:11}
+	varcharvalue := &LVarcharTupleValue{Value:"sweethui"}
+	sq := SqliTuple{
+		Warnings:0,
+	}
+	sq.Values = append(sq.Values, intvalue)
+	sq.Values = append(sq.Values, varcharvalue)
 	actual, err := sq.Pack()
 	assert.NoError(t, err)
 	assert.NotNil(t, actual)
-	assert.Equal(t, expect.Bytes(), actual)
+	assert.Equal(t, expect, actual)
 }
 
 func TestSqTuple_Unpack(t *testing.T) {

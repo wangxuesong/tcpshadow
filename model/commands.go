@@ -9,6 +9,7 @@ import (
 
 type TupleValue interface {
 	PackTupleValue(writer io.Writer) (error)
+	Size() int64
 }
 
 type TupleValues []TupleValue
@@ -59,7 +60,17 @@ func (sq *SqliTuple) Pack() ([]byte, error) {
 	packer := binpacker.NewPacker(binary.BigEndian, buffer)
 	packer.PushUint16(sq.Command())
 	packer.PushUint16(sq.Warnings)
-	sq.Values.PackTupleValue(buffer)
+	var sum int64 = 0
+	for _, v := range sq.Values {
+		sum += v.Size()
+	}
+	packer.PushUint32(uint32(sum))
+	valuesBuf := new(bytes.Buffer)
+	sq.Values.PackTupleValue(valuesBuf)
+	valuesBuf.WriteTo(buffer)
+	if sum%2 == 1 {
+		packer.PushByte(0) // Pad
+	}
 	return buffer.Bytes(), nil
 }
 
@@ -243,6 +254,10 @@ type SmallIntTupleValue struct {
 	Value  int16
 }
 
+func (v *SmallIntTupleValue) Size() int64 {
+	return 2
+}
+
 func NewSmallIntTuple(warn uint16, value int16) SqliTuple {
 	tvalue := SmallIntTupleValue{length: 2, Value: value}
 	return SqliTuple{Warnings: warn, Values: []TupleValue{&tvalue}}
@@ -250,7 +265,23 @@ func NewSmallIntTuple(warn uint16, value int16) SqliTuple {
 
 func (v *SmallIntTupleValue) PackTupleValue(writer io.Writer) error {
 	packer := binpacker.NewPacker(binary.BigEndian, writer)
-	packer.PushUint32(v.length)
+	//packer.PushUint32(v.length)
 	packer.PushInt16(v.Value)
+	return packer.Error()
+}
+
+type LVarcharTupleValue struct {
+	Value  string
+}
+
+func (v *LVarcharTupleValue) Size() int64 {
+	return int64(len(v.Value)) + 5
+}
+
+func (v *LVarcharTupleValue) PackTupleValue(writer io.Writer) (error) {
+	packer := binpacker.NewPacker(binary.BigEndian, writer)
+	packer.PushByte(0) // 长度最高字节,暂时只支持4字节，协议支持5字节
+	packer.PushUint32(uint32(len(v.Value)))
+	packer.PushBytes([]byte(v.Value))
 	return packer.Error()
 }
