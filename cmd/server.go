@@ -106,7 +106,7 @@ func ReadPackages() []model.SavePackage {
 		panic(err)
 	}
 	defer file.Close()
-	buf, err :=ioutil.ReadAll(file)
+	buf, err := ioutil.ReadAll(file)
 	if err != nil {
 		panic(err)
 	}
@@ -119,7 +119,7 @@ func ReadPackages() []model.SavePackage {
 		var header struct {
 			Index   uint16
 			Forward uint8
-			Length  uint32
+			Length  int64
 		}
 		err := binary.Read(reader, binary.LittleEndian, &header)
 		if err == io.EOF {

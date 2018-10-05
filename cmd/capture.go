@@ -100,11 +100,11 @@ func capture() {
 					var header struct {
 						Index   uint16
 						Forward uint8
-						Length  uint32
+						Length  int64
 					}
 					header.Index = uint16(index)
 					header.Forward = uint8(d.Forward)
-					header.Length = uint32(len(d.Buffer))
+					header.Length = int64(len(d.Buffer))
 					buf := new(bytes.Buffer)
 					//binary.Write(buf, binary.LittleEndian, uint16(index))
 					//binary.Write(buf, binary.LittleEndian, uint8(d.Forward))
