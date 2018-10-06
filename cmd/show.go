@@ -15,7 +15,6 @@
 package cmd
 
 import (
-	"fmt"
 	"github.com/davecgh/go-spew/spew"
 	"github.com/wangxuesong/tcpshadow/model"
 
@@ -50,6 +49,7 @@ var (
 	INVERSE_RED    = "\033[7m\033[91m"
 
 	color bool
+	raw   bool
 )
 
 // showCmd represents the show command
@@ -58,17 +58,24 @@ var showCmd = &cobra.Command{
 	Short: "show capture file",
 	Long:  `show capture file`,
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("show called")
 		packages := ReadPackages()
 		scs := spew.NewDefaultConfig()
 		scs.Indent = "    "
 		printPack := func(colorStr string, a interface{}) {
 			if color {
 				scs.Print(colorStr)
-				scs.Dump(a)
+				if raw {
+					scs.Printf("%v\n", a)
+				} else {
+					scs.Dump(a)
+				}
 				scs.Println(CLEAR)
 			} else {
-				scs.Dump(a)
+				if raw {
+					scs.Printf("%v\n", a)
+				} else {
+					scs.Dump(a)
+				}
 				scs.Println()
 			}
 		}
@@ -97,4 +104,5 @@ func init() {
 	showCmd.Flags().StringVarP(&inputFile, "input", "i", "", "input file")
 	showCmd.MarkFlagRequired("input")
 	showCmd.Flags().BoolVarP(&color, "color", "c", false, "print with color")
+	showCmd.Flags().BoolVarP(&raw, "raw", "r", false, "show raw")
 }

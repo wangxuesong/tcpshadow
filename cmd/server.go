@@ -138,7 +138,7 @@ func ReadPackages() []model.SavePackage {
 		}
 		_, err = reader.Read(data.Buffer)
 		// fmt.Println(index, forward, length, count)
-		fmt.Println(data)
+		//fmt.Println(data)
 		if err != nil {
 			return packages
 		}
