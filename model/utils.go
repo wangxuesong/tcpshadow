@@ -34,10 +34,10 @@ func (f *SelectTabFilter) Intercept(savePackage *SavePackage) []byte {
 		eot := &SqliEot{}
 
 		trans := SqliTransmission{}
-		trans = append(trans, tuple)
-		trans = append(trans, done)
-		trans = append(trans, cost)
-		trans = append(trans, eot)
+		trans.Append(tuple)
+		trans.Append(done)
+		trans.Append(cost)
+		trans.Append(eot)
 		buf, err := trans.Pack()
 		if err != nil {
 			return savePackage.Buffer

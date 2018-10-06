@@ -44,6 +44,9 @@ func (t *SqliTransmission) Pack() ([]byte, error) {
 	buffer.Write(temp.Bytes())
 	return buffer.Bytes(), nil
 }
+func (t *SqliTransmission) Append(cmd SqliCommand) {
+	*t = append(*t, cmd)
+}
 
 //SqliPrepare SQ_PREPARE 2
 type SqliPrepare struct {
@@ -99,7 +102,7 @@ func (sq *SqliTuple) Pack() ([]byte, error) {
 }
 
 func NewDescribeTransmission() (SqliTransmission, error) {
-	trans := make([]SqliCommand, 0, 4)
+	trans := SqliTransmission{}
 	desc := SqliDescribe{
 		StatementType: 2,
 		StatementID:   0,
@@ -122,10 +125,10 @@ func NewDescribeTransmission() (SqliTransmission, error) {
 		Name:           "b",
 	}
 	desc.Fields = append(desc.Fields, field2)
-	trans = append(trans, &desc)
-	trans = append(trans, &SqliDone{})
-	trans = append(trans, &SqliCost{EstimatedRows: 1, EstimatedIO: 1})
-	trans = append(trans, &SqliEot{})
+	trans.Append(&desc)
+	trans.Append(&SqliDone{})
+	trans.Append(&SqliCost{EstimatedRows: 1, EstimatedIO: 1})
+	trans.Append(&SqliEot{})
 	return trans, nil
 }
 
