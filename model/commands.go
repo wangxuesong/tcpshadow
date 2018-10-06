@@ -116,7 +116,7 @@ func NewDescribeTransmission() (SqliTransmission, error) {
 		Length:         4,
 		Name:           "a",
 	}
-	desc.Fields = append(desc.Fields, field1)
+	desc.AppendFields(field1)
 	field2 := SqliField{
 		FieldIndex:     2,
 		ColumnStartPos: 4,
@@ -124,7 +124,7 @@ func NewDescribeTransmission() (SqliTransmission, error) {
 		Length:         50,
 		Name:           "b",
 	}
-	desc.Fields = append(desc.Fields, field2)
+	desc.AppendFields(field2)
 	trans.Append(&desc)
 	trans.Append(&SqliDone{})
 	trans.Append(&SqliCost{EstimatedRows: 1, EstimatedIO: 1})
@@ -207,6 +207,9 @@ func (sq *SqliDescribe) packFields(writer io.Writer) error {
 	}
 
 	return packer.Error()
+}
+func (sq *SqliDescribe) AppendFields(field SqliField) {
+	sq.Fields = append(sq.Fields, field)
 }
 
 type SqliField struct {

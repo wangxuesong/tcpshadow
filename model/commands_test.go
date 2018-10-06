@@ -50,7 +50,7 @@ func TestSqliDescribe_Pack(t *testing.T) {
 		Length:         4,
 		Name:           "a",
 	}
-	desc.Fields = append(desc.Fields, field1)
+	desc.AppendFields(field1)
 	field2 := SqliField{
 		FieldIndex:     2,
 		ColumnStartPos: 4,
@@ -58,7 +58,7 @@ func TestSqliDescribe_Pack(t *testing.T) {
 		Length:         50,
 		Name:           "b",
 	}
-	desc.Fields = append(desc.Fields, field2)
+	desc.AppendFields(field2)
 
 	buf, err := desc.Pack()
 	assert.NoError(t, err)
