@@ -20,8 +20,13 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net"
 	"os"
+	"os/signal"
+	"sync"
+	"syscall"
+	"time"
 
 	"github.com/wangxuesong/tcpshadow/model"
 
@@ -37,7 +42,7 @@ var captureCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		//fmt.Println("capture called")
 		capture()
-		return errors.New("abc")
+		return nil
 	},
 }
 
@@ -65,30 +70,62 @@ func init() {
 	// is called directly, e.g.:
 	// captureCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 }
-func capture() {
-	fmt.Println("Start....")
-	clientConn, err := net.Listen("tcp4", listenAddress)
-	if err != nil {
-		panic(err)
-	}
-	defer clientConn.Close()
-	for {
-		client, err := clientConn.Accept()
-		if err != nil {
-			panic(err)
-		}
 
+type Service struct {
+	ch        chan bool
+	waitGroup *sync.WaitGroup
+}
+
+// Make a new Service.
+func NewService() *Service {
+	s := &Service{
+		ch:        make(chan bool),
+		waitGroup: &sync.WaitGroup{},
+	}
+	//s.waitGroup.Add(1)
+	return s
+}
+
+// Stop the service by closing the service's channel.  Block until the service
+// is really stopped.
+func (s *Service) Stop() {
+	close(s.ch)
+	s.waitGroup.Wait()
+}
+
+// Accept connections and spawn a goroutine to serve each one.  Stop listening
+// if anything is received on the service's channel.
+func (s *Service) Serve(listener *net.TCPListener) {
+	defer s.waitGroup.Done()
+	for {
+		select {
+		case <-s.ch:
+			log.Println("stopping listening on", listener.Addr())
+			listener.Close()
+			return
+		default:
+		}
+		listener.SetDeadline(time.Now().Add(1e9))
+		client, err := listener.AcceptTCP()
+		if nil != err {
+			if opErr, ok := err.(*net.OpError); ok && opErr.Timeout() {
+				continue
+			}
+			log.Println(err)
+		}
+		log.Println(client.RemoteAddr(), "connected")
 		server, err := connectServer(client)
 		if err != nil {
 			panic(err)
 		}
 
+		s.waitGroup.Add(1)
 		monitor := make(chan model.Data)
 
 		go func() {
 			file, err := os.OpenFile(outputFile, os.O_CREATE|os.O_RDWR, 0644)
 			if err != nil {
-				fmt.Printf("Can't open file with %s\n", err)
+				log.Printf("Can't open file with %s\n", err)
 			}
 			defer file.Close()
 
@@ -96,7 +133,7 @@ func capture() {
 			for {
 				select {
 				case d := <-monitor:
-					fmt.Printf("%s: %#v\n", d.Forward, d.Buffer)
+					fmt.Printf("%d %s: %v\n", index, d.Forward, d.Buffer)
 					var header struct {
 						Index   uint16
 						Forward uint8
@@ -112,39 +149,86 @@ func capture() {
 					file.Write(buf.Bytes())
 					file.Write(d.Buffer)
 					file.Sync()
+				case <-s.ch:
+					file.Close()
+					return
 				}
 				index++
 			}
 		}()
-
-		go proxyData(client, server, model.ClientToServer, monitor)
-		go proxyData(server, client, model.ServerToClient, monitor)
+		go s.proxyData(client, server, model.ClientToServer, monitor)
+		go s.proxyData(server, client, model.ServerToClient, monitor)
 	}
+}
+
+func capture() {
+	log.Println("Start....")
+	clientConn, err := net.ResolveTCPAddr("tcp4", listenAddress)
+	if nil != err {
+		log.Fatalln(err)
+	}
+	listener, err := net.ListenTCP("tcp4", clientConn)
+	if nil != err {
+		log.Fatalln(err)
+	}
+	log.Println("listening on", listener.Addr())
+
+	// Make a new service and send it into the background.
+	service := NewService()
+	go service.Serve(listener)
+
+	// Handle SIGINT and SIGTERM.
+	ch := make(chan os.Signal)
+	signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM)
+	log.Println(<-ch)
+
+	// Stop the service gracefully.
+	service.Stop()
 }
 
 func connectServer(client net.Conn) (net.Conn, error) {
 	if client == nil {
-		return nil, errors.New("Client nil")
+		return nil, errors.New("client nil")
 	}
 
-	fmt.Println("Connect to server")
+	log.Println("Connect to server")
 
-	server, err := net.Dial("tcp4", serverAddress)
+	server, err := net.Dial("tcp", serverAddress)
 	return server, err
 }
 
-func proxyData(src net.Conn, dest net.Conn, forward model.DataForward, monitor chan model.Data) {
-	buf := make([]byte, 16384)
+func (s *Service) proxyData(src net.Conn, dest net.Conn, forward model.DataForward, monitor chan model.Data) {
+	defer src.Close()
+	defer s.waitGroup.Done()
+	//buf := make([]byte, 16384)
+	s.waitGroup.Add(1)
 	for {
-		cnt, err := src.Read(buf)
-		if err == io.EOF {
+		select {
+		case <-s.ch:
+			log.Println("disconnecting", src.RemoteAddr())
 			return
+		default:
 		}
-		if err != nil {
-			panic(err)
+		src.SetDeadline(time.Now().Add(1e9))
+		buf := make([]byte, 16384)
+		cnt, err := src.Read(buf)
+		if nil != err {
+			if opErr, ok := err.(*net.OpError); ok && opErr.Timeout() {
+				continue
+			}
+			if err == io.EOF {
+				log.Println("disconnecting", src.RemoteAddr())
+				s.ch <- true
+				return
+			}
+			log.Println(err)
+			return
 		}
 		data := model.Data{Forward: forward, Buffer: buf[:cnt]}
 		monitor <- data
-		dest.Write(buf[:cnt])
+		if _, err := dest.Write(buf[:cnt]); nil != err {
+			log.Println(err)
+			return
+		}
 	}
 }
