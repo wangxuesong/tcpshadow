@@ -77,71 +77,11 @@ func (sq *SqliPrepare) Unpack(r io.Reader) error {
 	unpacker.FetchUint16(&sq.QMarks).
 		FetchUint32(&size).
 		FetchString(uint64(size), &sq.Sql)
-	if size %2 == 1 {
+	if size%2 == 1 {
 		var tmp byte
 		unpacker.FetchByte(&tmp)
 	}
 	return unpacker.Error()
-}
-
-//SqliTuple SQ_TUPLE 14
-type SqliTuple struct {
-	Warnings uint16
-	Values   TupleValues
-}
-
-func (sq *SqliTuple) Command() uint16 {
-	return 14
-}
-
-func (sq *SqliTuple) Pack() ([]byte, error) {
-	buffer := new(bytes.Buffer)
-	packer := binpacker.NewPacker(binary.BigEndian, buffer)
-	packer.PushUint16(sq.Command())
-	packer.PushUint16(sq.Warnings)
-	var sum int64 = 0
-	for _, v := range sq.Values {
-		sum += v.Size()
-	}
-	packer.PushUint32(uint32(sum))
-	valuesBuf := new(bytes.Buffer)
-	sq.Values.PackTupleValue(valuesBuf)
-	valuesBuf.WriteTo(buffer)
-	if sum%2 == 1 {
-		packer.PushByte(0) // Pad
-	}
-	return buffer.Bytes(), nil
-}
-
-func NewDescribeTransmission() (SqliTransmission, error) {
-	trans := SqliTransmission{}
-	desc := SqliDescribe{
-		StatementType: 2,
-		StatementID:   0,
-		EstimatedCost: 0,
-		TupleSize:     55,
-	}
-	field1 := SqliField{
-		FieldIndex:     0,
-		ColumnStartPos: 0,
-		ColumnType:     2,
-		Length:         4,
-		Name:           "a",
-	}
-	desc.AppendFields(field1)
-	field2 := SqliField{
-		FieldIndex:     2,
-		ColumnStartPos: 4,
-		ColumnType:     13,
-		Length:         50,
-		Name:           "b",
-	}
-	desc.AppendFields(field2)
-	trans.Append(&desc)
-	trans.Append(&SqliDone{})
-	trans.Append(&SqliCost{EstimatedRows: 1, EstimatedIO: 1})
-	trans.Append(&SqliEot{})
-	return trans, nil
 }
 
 //SqliDescribe SQ_DESCRIBE 8
@@ -220,6 +160,7 @@ func (sq *SqliDescribe) packFields(writer io.Writer) error {
 
 	return packer.Error()
 }
+
 func (sq *SqliDescribe) AppendFields(field SqliField) {
 	sq.Fields = append(sq.Fields, field)
 }
@@ -236,6 +177,78 @@ type SqliField struct {
 	SourceType              uint32
 	Length                  uint32
 	Name                    string
+}
+
+//SqliEot SQ_EOT 12
+type SqliEot struct {
+}
+
+func (*SqliEot) Command() uint16 {
+	return 12
+}
+
+func (*SqliEot) Pack() ([]byte, error) {
+	return []byte{0, 12}, nil
+}
+
+//SqliTuple SQ_TUPLE 14
+type SqliTuple struct {
+	Warnings uint16
+	Values   TupleValues
+}
+
+func (sq *SqliTuple) Command() uint16 {
+	return 14
+}
+
+func (sq *SqliTuple) Pack() ([]byte, error) {
+	buffer := new(bytes.Buffer)
+	packer := binpacker.NewPacker(binary.BigEndian, buffer)
+	packer.PushUint16(sq.Command())
+	packer.PushUint16(sq.Warnings)
+	var sum int64 = 0
+	for _, v := range sq.Values {
+		sum += v.Size()
+	}
+	packer.PushUint32(uint32(sum))
+	valuesBuf := new(bytes.Buffer)
+	sq.Values.PackTupleValue(valuesBuf)
+	valuesBuf.WriteTo(buffer)
+	if sum%2 == 1 {
+		packer.PushByte(0) // Pad
+	}
+	return buffer.Bytes(), nil
+}
+
+func NewDescribeTransmission() (SqliTransmission, error) {
+	trans := SqliTransmission{}
+	desc := SqliDescribe{
+		StatementType: 2,
+		StatementID:   0,
+		EstimatedCost: 0,
+		TupleSize:     55,
+	}
+	field1 := SqliField{
+		FieldIndex:     0,
+		ColumnStartPos: 0,
+		ColumnType:     2,
+		Length:         4,
+		Name:           "a",
+	}
+	desc.AppendFields(field1)
+	field2 := SqliField{
+		FieldIndex:     2,
+		ColumnStartPos: 4,
+		ColumnType:     13,
+		Length:         50,
+		Name:           "b",
+	}
+	desc.AppendFields(field2)
+	trans.Append(&desc)
+	trans.Append(&SqliDone{})
+	trans.Append(&SqliCost{EstimatedRows: 1, EstimatedIO: 1})
+	trans.Append(&SqliEot{})
+	return trans, nil
 }
 
 //SqliDone SQ_DONE 15
@@ -277,18 +290,6 @@ func (sq *SqliCost) Pack() ([]byte, error) {
 	packer.PushUint16(sq.Command())
 	packer.PushUint32(sq.EstimatedRows).PushUint32(sq.EstimatedIO)
 	return buffer.Bytes(), packer.Error()
-}
-
-//SqliEot SQ_EOT 12
-type SqliEot struct {
-}
-
-func (*SqliEot) Command() uint16 {
-	return 12
-}
-
-func (*SqliEot) Pack() ([]byte, error) {
-	return []byte{0, 12}, nil
 }
 
 type SmallIntTupleValue struct {
