@@ -71,6 +71,18 @@ func (sq *SqliPrepare) Pack() ([]byte, error) {
 
 	return buffer.Bytes(), packer.Error()
 }
+func (sq *SqliPrepare) Unpack(r io.Reader) error {
+	unpacker := binpacker.NewUnpacker(binary.BigEndian, r)
+	var size uint32
+	unpacker.FetchUint16(&sq.QMarks).
+		FetchUint32(&size).
+		FetchString(uint64(size), &sq.Sql)
+	if size %2 == 1 {
+		var tmp byte
+		unpacker.FetchByte(&tmp)
+	}
+	return unpacker.Error()
+}
 
 //SqliTuple SQ_TUPLE 14
 type SqliTuple struct {
@@ -314,4 +326,30 @@ func (v *LVarcharTupleValue) PackTupleValue(writer io.Writer) error {
 	packer.PushUint32(uint32(len(v.Value)))
 	packer.PushBytes([]byte(v.Value))
 	return packer.Error()
+}
+
+func UnpackSqliCommand(reader io.ReadSeeker) (SqliCommand, error) {
+	var cmd uint16
+	pos, err := reader.Seek(0, io.SeekCurrent)
+	if err != nil {
+		return nil, err
+	}
+	err = binary.Read(reader, binary.BigEndian, &cmd)
+	if err != nil {
+		reader.Seek(pos, io.SeekStart)
+		return nil, err
+	}
+
+	switch cmd {
+	case 2:
+		command := &SqliPrepare{}
+		err = command.Unpack(reader)
+		if err != nil {
+			reader.Seek(pos, io.SeekStart)
+			return nil, err
+		}
+		return command, nil
+	default:
+		panic(cmd)
+	}
 }

@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"github.com/stretchr/testify/assert"
 	"github.com/zhuangsirui/binpacker"
+	"io"
 	"testing"
 )
 
@@ -97,4 +98,20 @@ func TestSqliTransmission_Pack(t *testing.T) {
 	buf, err = trans[3].Pack()
 	assert.NoError(t, err)
 	assert.Equal(t, expect[size-2:], buf)
+}
+
+func TestSqliPrepare_Pack_Unpack(t *testing.T) {
+	expect := []byte{0, 2, 0, 0, 0, 0, 0, 29, 115, 101, 108, 101, 99, 116, 32, 42, 32, 102, 114, 111, 109, 32, 115, 116, 111, 114, 101, 115, 95, 100, 101, 109, 111, 58, 116, 97, 98, 0}
+	prepare := &SqliPrepare{QMarks:0, Sql:"select * from stores_demo:tab"}
+	buf, err := prepare.Pack()
+	assert.NoError(t, err)
+	assert.Equal(t, expect, buf)
+
+	buffer := bytes.NewReader(expect)
+	cmd, err := UnpackSqliCommand(buffer)
+	assert.NoError(t, err)
+	assert.Equal(t, prepare, cmd)
+	pos, err := buffer.Seek(0, io.SeekCurrent)
+	assert.NoError(t, err)
+	assert.EqualValues(t, pos, len(expect))
 }

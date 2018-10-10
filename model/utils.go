@@ -15,7 +15,7 @@ func (f *SelectTabFilter) Match(savePackage *SavePackage) {
 }
 
 func (f *SelectTabFilter) Intercept(savePackage *SavePackage) []byte {
-	if savePackage.Number == 104 {
+	if savePackage.Number == 103 {
 		tuple := &SqliTuple{
 			Warnings: 0,
 		}
