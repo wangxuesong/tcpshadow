@@ -410,6 +410,46 @@ func (sq *SqliCost) Unpack(r io.Reader) error {
 	return unpacker.Error()
 }
 
+type SqliProtocols struct {
+	Protocol []byte
+}
+
+func (sq *SqliProtocols) Command() uint16 {
+	return 126
+}
+
+func (sq *SqliProtocols) Pack() ([]byte, error) {
+	buffer := new(bytes.Buffer)
+	packer := binpacker.NewPacker(binary.BigEndian, buffer)
+	packer.PushUint16(sq.Command()).
+		PushUint16(uint16(len(sq.Protocol))).
+		PushBytes(sq.Protocol)
+	if len(sq.Protocol)%2 == 1 {
+		packer.PushByte(0)
+	}
+	return buffer.Bytes(), packer.Error()
+}
+
+func (sq *SqliProtocols) Unpack(r io.Reader) error {
+	unpacker := binpacker.NewUnpacker(binary.BigEndian, r)
+	var size uint16
+	unpacker.FetchUint16(&size)
+	err := unpacker.Error()
+	if err != nil {
+		return err
+	}
+	sq.Protocol = make([]byte, size)
+	_, err = r.Read(sq.Protocol)
+	if err != nil {
+		return err
+	}
+	if size%2 == 1 {
+		var pad byte
+		unpacker.FetchByte(&pad) // Pad
+	}
+	return unpacker.Error()
+}
+
 type SmallIntTupleValue struct {
 	Value int16
 }
@@ -511,6 +551,14 @@ func UnpackSqliCommand(reader io.ReadSeeker) (SqliCommand, error) {
 		return command, nil
 	case 55:
 		command := &SqliCost{}
+		err = command.Unpack(reader)
+		if err != nil {
+			reader.Seek(pos, io.SeekStart)
+			return nil, err
+		}
+		return command, nil
+	case 126:
+		command := &SqliProtocols{}
 		err = command.Unpack(reader)
 		if err != nil {
 			reader.Seek(pos, io.SeekStart)
