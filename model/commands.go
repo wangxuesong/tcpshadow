@@ -3,12 +3,15 @@ package model
 import (
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"github.com/zhuangsirui/binpacker"
 	"io"
+	"strings"
 )
 
 type TupleValue interface {
 	PackTupleValue(writer io.Writer) error
+	UnpackTupleValue(reader io.Reader) error
 	Size() int64
 }
 
@@ -27,6 +30,7 @@ func (tv *TupleValues) PackTupleValue(writer io.Writer) error {
 type SqliCommand interface {
 	Command() uint16
 	Pack() ([]byte, error)
+	Unpack(r io.Reader) error
 }
 
 type SqliTransmission []SqliCommand
@@ -44,6 +48,7 @@ func (t *SqliTransmission) Pack() ([]byte, error) {
 	buffer.Write(temp.Bytes())
 	return buffer.Bytes(), nil
 }
+
 func (t *SqliTransmission) Append(cmd SqliCommand) {
 	*t = append(*t, cmd)
 }
@@ -71,6 +76,7 @@ func (sq *SqliPrepare) Pack() ([]byte, error) {
 
 	return buffer.Bytes(), packer.Error()
 }
+
 func (sq *SqliPrepare) Unpack(r io.Reader) error {
 	unpacker := binpacker.NewUnpacker(binary.BigEndian, r)
 	var size uint32
@@ -128,6 +134,29 @@ func (sq *SqliDescribe) Pack() ([]byte, error) {
 	return buffer.Bytes(), packer.Error()
 }
 
+func (sq *SqliDescribe) Unpack(r io.Reader) error {
+	unpacker := binpacker.NewUnpacker(binary.BigEndian, r)
+	unpacker.FetchUint16(&sq.StatementType).
+		FetchUint16(&sq.StatementID).
+		FetchUint32(&sq.EstimatedCost).
+		FetchUint16(&sq.TupleSize).
+		FetchUint16(&sq.CountOfFields).
+		FetchUint32(&sq.StringTable)
+	err := unpacker.Error()
+	if err != nil {
+		return err
+	}
+	err = sq.unpackFields(r)
+	if err != nil {
+		return err
+	}
+	err = sq.unpackStringTable(r)
+	if err != nil {
+		return err
+	}
+	return unpacker.Error()
+}
+
 func (sq *SqliDescribe) packStringTable(writer io.Writer) (uint32, error) {
 	packer := binpacker.NewPacker(binary.BigEndian, writer)
 	count := 0
@@ -141,6 +170,21 @@ func (sq *SqliDescribe) packStringTable(writer io.Writer) (uint32, error) {
 	}
 
 	return uint32(count), packer.Error()
+}
+
+func (sq *SqliDescribe) unpackStringTable(r io.Reader) error {
+	unpacker := binpacker.NewUnpacker(binary.BigEndian, r)
+	var temp string
+	unpacker.FetchString(uint64(sq.StringTable), &temp)
+	names := strings.Split(temp, string(0))
+	if len(names)-1 != int(sq.CountOfFields) {
+		return errors.New("unpack string table error")
+	}
+
+	for i := range sq.Fields {
+		sq.Fields[i].Name = names[i]
+	}
+	return nil
 }
 
 func (sq *SqliDescribe) packFields(writer io.Writer) error {
@@ -159,6 +203,28 @@ func (sq *SqliDescribe) packFields(writer io.Writer) error {
 	}
 
 	return packer.Error()
+}
+
+func (sq *SqliDescribe) unpackFields(r io.Reader) error {
+	unpacker := binpacker.NewUnpacker(binary.BigEndian, r)
+
+	for i := uint16(0); i < sq.CountOfFields; i++ {
+		f := &SqliField{}
+		unpacker.FetchUint32(&f.FieldIndex).
+			FetchUint32(&f.ColumnStartPos).
+			FetchUint16(&f.ColumnType).
+			FetchUint32(&f.ColumnExtendedBuiltinId).
+			FetchUint16(&f.OwnerName).
+			FetchUint16(&f.ExtendedName).
+			FetchUint16(&f.Reference).
+			FetchUint16(&f.Alignment).
+			FetchUint32(&f.SourceType).
+			FetchUint32(&f.Length)
+
+		sq.AppendFields(*f)
+	}
+
+	return unpacker.Error()
 }
 
 func (sq *SqliDescribe) AppendFields(field SqliField) {
@@ -191,10 +257,16 @@ func (*SqliEot) Pack() ([]byte, error) {
 	return []byte{0, 12}, nil
 }
 
+func (*SqliEot) Unpack(r io.Reader) error {
+	panic("implement me")
+}
+
 //SqliTuple SQ_TUPLE 14
 type SqliTuple struct {
-	Warnings uint16
-	Values   TupleValues
+	Warnings   uint16
+	size       uint32
+	tupleBytes []byte
+	Values     TupleValues
 }
 
 func (sq *SqliTuple) Command() uint16 {
@@ -218,6 +290,36 @@ func (sq *SqliTuple) Pack() ([]byte, error) {
 		packer.PushByte(0) // Pad
 	}
 	return buffer.Bytes(), nil
+}
+
+func (sq *SqliTuple) Unpack(r io.Reader) error {
+	unpacker := binpacker.NewUnpacker(binary.BigEndian, r)
+	unpacker.FetchUint16(&sq.Warnings).FetchUint32(&sq.size)
+	err := unpacker.Error()
+	if err != nil {
+		return err
+	}
+	sq.tupleBytes = make([]byte, sq.size)
+	_, err = r.Read(sq.tupleBytes)
+	if err != nil {
+		return err
+	}
+	if sq.size%2 == 1 {
+		var pad byte
+		unpacker.FetchByte(&pad) // Pad
+	}
+	return unpacker.Error()
+}
+
+func (sq *SqliTuple) unpackValues(r io.Reader) error {
+	for _, v := range sq.Values {
+		err := v.UnpackTupleValue(r)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func NewDescribeTransmission() (SqliTransmission, error) {
@@ -274,6 +376,15 @@ func (sq *SqliDone) Pack() ([]byte, error) {
 	return buffer.Bytes(), packer.Error()
 }
 
+func (sq *SqliDone) Unpack(r io.Reader) error {
+	unpacker := binpacker.NewUnpacker(binary.BigEndian, r)
+	unpacker.FetchInt16(&sq.Warning).
+		FetchUint32(&sq.Rows).
+		FetchUint32(&sq.RowID).
+		FetchUint32(&sq.SerialID)
+	return unpacker.Error()
+}
+
 //SqliCost SQ_COST 55
 type SqliCost struct {
 	EstimatedRows uint32
@@ -292,18 +403,15 @@ func (sq *SqliCost) Pack() ([]byte, error) {
 	return buffer.Bytes(), packer.Error()
 }
 
+func (sq *SqliCost) Unpack(r io.Reader) error {
+	unpacker := binpacker.NewUnpacker(binary.BigEndian, r)
+	unpacker.FetchUint32(&sq.EstimatedRows).
+		FetchUint32(&sq.EstimatedIO)
+	return unpacker.Error()
+}
+
 type SmallIntTupleValue struct {
-	length uint32
-	Value  int16
-}
-
-func (v *SmallIntTupleValue) Size() int64 {
-	return 2
-}
-
-func NewSmallIntTuple(warn uint16, value int16) SqliTuple {
-	tvalue := SmallIntTupleValue{length: 2, Value: value}
-	return SqliTuple{Warnings: warn, Values: []TupleValue{&tvalue}}
+	Value int16
 }
 
 func (v *SmallIntTupleValue) PackTupleValue(writer io.Writer) error {
@@ -313,12 +421,18 @@ func (v *SmallIntTupleValue) PackTupleValue(writer io.Writer) error {
 	return packer.Error()
 }
 
-type LVarcharTupleValue struct {
-	Value string
+func (v *SmallIntTupleValue) UnpackTupleValue(reader io.Reader) error {
+	unpacker := binpacker.NewUnpacker(binary.BigEndian, reader)
+	unpacker.FetchInt16(&v.Value)
+	return unpacker.Error()
 }
 
-func (v *LVarcharTupleValue) Size() int64 {
-	return int64(len(v.Value)) + 5
+func (v *SmallIntTupleValue) Size() int64 {
+	return 2
+}
+
+type LVarcharTupleValue struct {
+	Value string
 }
 
 func (v *LVarcharTupleValue) PackTupleValue(writer io.Writer) error {
@@ -327,6 +441,24 @@ func (v *LVarcharTupleValue) PackTupleValue(writer io.Writer) error {
 	packer.PushUint32(uint32(len(v.Value)))
 	packer.PushBytes([]byte(v.Value))
 	return packer.Error()
+}
+
+func (v *LVarcharTupleValue) UnpackTupleValue(reader io.Reader) error {
+	unpacker := binpacker.NewUnpacker(binary.BigEndian, reader)
+	_, err := unpacker.ShiftByte()
+	if err != nil {
+		return err
+	}
+	size, err := unpacker.ShiftUint32()
+	if err != nil {
+		return err
+	}
+	unpacker.FetchString(uint64(size), &v.Value)
+	return unpacker.Error()
+}
+
+func (v *LVarcharTupleValue) Size() int64 {
+	return int64(len(v.Value)) + 5
 }
 
 func UnpackSqliCommand(reader io.ReadSeeker) (SqliCommand, error) {
@@ -350,7 +482,57 @@ func UnpackSqliCommand(reader io.ReadSeeker) (SqliCommand, error) {
 			return nil, err
 		}
 		return command, nil
+	case 8:
+		command := &SqliDescribe{}
+		err = command.Unpack(reader)
+		if err != nil {
+			reader.Seek(pos, io.SeekStart)
+			return nil, err
+		}
+		return command, nil
+	case 12:
+		command := &SqliEot{}
+		return command, nil
+	case 14:
+		command := &SqliTuple{}
+		err = command.Unpack(reader)
+		if err != nil {
+			reader.Seek(pos, io.SeekStart)
+			return nil, err
+		}
+		return command, nil
+	case 15:
+		command := &SqliDone{}
+		err = command.Unpack(reader)
+		if err != nil {
+			reader.Seek(pos, io.SeekStart)
+			return nil, err
+		}
+		return command, nil
+	case 55:
+		command := &SqliCost{}
+		err = command.Unpack(reader)
+		if err != nil {
+			reader.Seek(pos, io.SeekStart)
+			return nil, err
+		}
+		return command, nil
 	default:
 		panic(cmd)
 	}
+}
+
+func UnpackSqliTransmission(reader io.ReadSeeker) (SqliTransmission, error) {
+	trans := make(SqliTransmission, 0, 5)
+	for {
+		cmd, err := UnpackSqliCommand(reader)
+		if err == io.EOF {
+			return trans, nil
+		}
+		if err != nil {
+			return nil, err
+		}
+		trans.Append(cmd)
+	}
+	return trans, nil
 }

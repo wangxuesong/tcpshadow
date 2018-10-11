@@ -2,43 +2,47 @@ package model
 
 import (
 	"bytes"
-	"encoding/binary"
 	"github.com/stretchr/testify/assert"
-	"github.com/zhuangsirui/binpacker"
 	"io"
 	"testing"
 )
 
-func TestSqTuple_Pack(t *testing.T) {
+func TestSqTuple_Pack_Unpack(t *testing.T) {
 	expect := []byte{0, 14, 0, 0, 0, 0, 0, 15, 0, 11, 0, 0, 0, 0, 8, 115, 119, 101, 101, 116, 104, 117, 105, 0}
 
 	intvalue := &SmallIntTupleValue{Value: 11}
 	varcharvalue := &LVarcharTupleValue{Value: "sweethui"}
-	sq := SqliTuple{
+	tuple := SqliTuple{
 		Warnings: 0,
 	}
-	sq.Values = append(sq.Values, intvalue)
-	sq.Values = append(sq.Values, varcharvalue)
-	actual, err := sq.Pack()
+	tuple.Values = append(tuple.Values, intvalue)
+	tuple.Values = append(tuple.Values, varcharvalue)
+	actual, err := tuple.Pack()
 	assert.NoError(t, err)
 	assert.NotNil(t, actual)
 	assert.Equal(t, expect, actual)
+
+	buffer := bytes.NewReader(expect)
+	cmd, err := UnpackSqliCommand(buffer)
+	assert.NoError(t, err)
+	assert.IsType(t, &SqliTuple{}, cmd)
+	tupleCmd, ok := cmd.(*SqliTuple)
+	assert.True(t, ok)
+	tupleCmd.Values = append(tupleCmd.Values, &SmallIntTupleValue{})
+	tupleCmd.Values = append(tupleCmd.Values, &LVarcharTupleValue{})
+	reader := bytes.NewReader(tupleCmd.tupleBytes)
+	tupleCmd.unpackValues(reader)
+	//assert.Equal(t, &tuple, cmd)
+	assert.Equal(t, tuple.Warnings, tupleCmd.Warnings)
+	assert.Equal(t, tuple.Values, tupleCmd.Values)
+	pos, err := buffer.Seek(0, io.SeekCurrent)
+	assert.NoError(t, err)
+	assert.EqualValues(t, pos, len(expect))
 }
 
-func TestSqTuple_Unpack(t *testing.T) {
-	buf := []byte{0, 0, 0, 0, 0, 2, 0, 11}
-	buffer := bytes.NewBuffer(buf)
-	unpacker := binpacker.NewUnpacker(binary.BigEndian, buffer)
-	tuple := &SqliTuple{}
-	smallint := &SmallIntTupleValue{}
-	unpacker.FetchUint16(&tuple.Warnings).
-		FetchUint32(&smallint.length).FetchInt16(&smallint.Value)
-	assert.NoError(t, unpacker.Error())
-}
-
-func TestSqliDescribe_Pack(t *testing.T) {
+func TestSqliDescribe_Pack_Unpack(t *testing.T) {
 	expect := []byte{0, 8, 0, 2, 0, 0, 0, 0, 0, 0, 0, 55, 0, 2, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 2, 0, 0, 0, 4, 0, 13, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 50, 97, 0, 98, 0}
-	desc := SqliDescribe{
+	desc := &SqliDescribe{
 		StatementType: 2,
 		StatementID:   0,
 		EstimatedCost: 0,
@@ -64,25 +68,49 @@ func TestSqliDescribe_Pack(t *testing.T) {
 	buf, err := desc.Pack()
 	assert.NoError(t, err)
 	assert.Equal(t, expect, buf)
+
+	buffer := bytes.NewReader(expect)
+	cmd, err := UnpackSqliCommand(buffer)
+	assert.NoError(t, err)
+	assert.Equal(t, desc, cmd)
+	pos, err := buffer.Seek(0, io.SeekCurrent)
+	assert.NoError(t, err)
+	assert.EqualValues(t, pos, len(expect))
 }
 
-func TestSqliDone_Pack(t *testing.T) {
-	done := SqliDone{}
+func TestSqliDone_Pack_Unpack(t *testing.T) {
+	done := &SqliDone{}
 	buf, err := done.Pack()
 	expect := []byte{0, 15, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
 	assert.NoError(t, err)
 	assert.Equal(t, expect, buf)
+
+	buffer := bytes.NewReader(expect)
+	cmd, err := UnpackSqliCommand(buffer)
+	assert.NoError(t, err)
+	assert.Equal(t, done, cmd)
+	pos, err := buffer.Seek(0, io.SeekCurrent)
+	assert.NoError(t, err)
+	assert.EqualValues(t, pos, len(expect))
 }
 
-func TestSqliCost_Pack(t *testing.T) {
-	cost := SqliCost{EstimatedRows: 1, EstimatedIO: 1}
+func TestSqliCost_Pack_Unpack(t *testing.T) {
+	cost := &SqliCost{EstimatedRows: 1, EstimatedIO: 1}
 	buf, err := cost.Pack()
 	expect := []byte{0, 55, 0, 0, 0, 1, 0, 0, 0, 1}
 	assert.NoError(t, err)
 	assert.Equal(t, expect, buf)
+
+	buffer := bytes.NewReader(expect)
+	cmd, err := UnpackSqliCommand(buffer)
+	assert.NoError(t, err)
+	assert.Equal(t, cost, cmd)
+	pos, err := buffer.Seek(0, io.SeekCurrent)
+	assert.NoError(t, err)
+	assert.EqualValues(t, pos, len(expect))
 }
 
-func TestSqliTransmission_Pack(t *testing.T) {
+func TestSqliTransmission_Pack_Unpack(t *testing.T) {
 	expect := []byte{0, 8, 0, 2, 0, 0, 0, 0, 0, 0, 0, 55, 0, 2, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 2, 0, 0, 0, 4, 0, 13, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 50, 97, 0, 98, 0, 0, 15, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 55, 0, 0, 0, 1, 0, 0, 0, 1, 0, 12}
 	size := len(expect)
 	trans, err := NewDescribeTransmission()
@@ -98,11 +126,19 @@ func TestSqliTransmission_Pack(t *testing.T) {
 	buf, err = trans[3].Pack()
 	assert.NoError(t, err)
 	assert.Equal(t, expect[size-2:], buf)
+
+	buffer := bytes.NewReader(expect)
+	cmds, err := UnpackSqliTransmission(buffer)
+	assert.NoError(t, err)
+	assert.Equal(t, trans, cmds)
+	pos, err := buffer.Seek(0, io.SeekCurrent)
+	assert.NoError(t, err)
+	assert.EqualValues(t, pos, len(expect))
 }
 
 func TestSqliPrepare_Pack_Unpack(t *testing.T) {
 	expect := []byte{0, 2, 0, 0, 0, 0, 0, 29, 115, 101, 108, 101, 99, 116, 32, 42, 32, 102, 114, 111, 109, 32, 115, 116, 111, 114, 101, 115, 95, 100, 101, 109, 111, 58, 116, 97, 98, 0}
-	prepare := &SqliPrepare{QMarks:0, Sql:"select * from stores_demo:tab"}
+	prepare := &SqliPrepare{QMarks: 0, Sql: "select * from stores_demo:tab"}
 	buf, err := prepare.Pack()
 	assert.NoError(t, err)
 	assert.Equal(t, expect, buf)
