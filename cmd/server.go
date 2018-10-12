@@ -125,7 +125,6 @@ func ReadPackages() []model.SavePackage {
 		if err != nil {
 			panic(err)
 		}
-		// fmt.Println(header)
 		index := int(header.Index)
 		forward := model.DataForward(header.Forward)
 		length := int(header.Length)
@@ -137,8 +136,6 @@ func ReadPackages() []model.SavePackage {
 			Buffer:  buf,
 		}
 		_, err = reader.Read(data.Buffer)
-		// fmt.Println(index, forward, length, count)
-		//fmt.Println(data)
 		if err != nil {
 			return packages
 		}

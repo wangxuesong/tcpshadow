@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"github.com/zhuangsirui/binpacker"
 	"io"
 	"strings"
@@ -672,8 +673,12 @@ func UnpackSqliCommand(reader io.ReadSeeker) (SqliCommand, error) {
 		}
 		return command, nil
 	default:
-		return nil, ErrUnknownCommand
+		return nil, UnknownCommandError(cmd)
 	}
+}
+
+func UnknownCommandError(cmd uint16) error {
+	return errors.New(fmt.Sprintf("unknown command: %d", cmd))
 }
 
 func UnpackSqliTransmission(reader io.ReadSeeker) (SqliTransmission, error) {

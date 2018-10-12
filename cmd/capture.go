@@ -18,7 +18,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"errors"
-	"fmt"
+	"github.com/davecgh/go-spew/spew"
 	"io"
 	"log"
 	"net"
@@ -50,6 +50,7 @@ var (
 	serverAddress string
 	listenAddress string
 	outputFile    string
+	print         bool
 )
 
 func init() {
@@ -65,6 +66,7 @@ func init() {
 	captureCmd.MarkFlagRequired("listen")
 	captureCmd.Flags().StringVarP(&outputFile, "output", "o", "", "output file")
 	captureCmd.MarkFlagRequired("output")
+	captureCmd.Flags().BoolVarP(&print, "print", "p", false, "print package")
 
 	// Cobra supports local flags which will only run when this command
 	// is called directly, e.g.:
@@ -133,7 +135,6 @@ func (s *Service) Serve(listener *net.TCPListener) {
 			for {
 				select {
 				case d := <-monitor:
-					fmt.Printf("%d %s: %v\n", index, d.Forward, d.Buffer)
 					var header struct {
 						Index   uint16
 						Forward uint8
@@ -143,12 +144,43 @@ func (s *Service) Serve(listener *net.TCPListener) {
 					header.Forward = uint8(d.Forward)
 					header.Length = int64(len(d.Buffer))
 					buf := new(bytes.Buffer)
-					//binary.Write(buf, binary.LittleEndian, uint16(index))
-					//binary.Write(buf, binary.LittleEndian, uint8(d.Forward))
 					binary.Write(buf, binary.LittleEndian, header)
 					file.Write(buf.Bytes())
 					file.Write(d.Buffer)
 					file.Sync()
+					if print {
+						scs := spew.NewDefaultConfig()
+						scs.Indent = "    "
+						data := model.SavePackage{
+							Number:  int(header.Index),
+							Forward: model.DataForward(header.Forward),
+							Length:  int(header.Length),
+							Buffer:  d.Buffer,
+						}
+
+						colorStr := GREEN
+						clearStr := CLEAR
+						if d.Forward == model.ServerToClient {
+							colorStr = YELLOW
+						}
+						warningStr := RED
+						scs.Print(colorStr)
+						if data.Number < 2 {
+							scs.Dump(data)
+						} else {
+							reader := bytes.NewReader(data.Buffer)
+							cmds, err := model.UnpackSqliTransmission(reader)
+							if err != nil {
+								scs.Print(warningStr)
+								scs.Println(err)
+								scs.Dump(data)
+								scs.Println(clearStr)
+								continue
+							}
+							scs.Dump(cmds)
+						}
+						scs.Println(clearStr)
+					}
 				case <-s.ch:
 					file.Close()
 					return
