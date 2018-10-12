@@ -597,6 +597,8 @@ func (v *LVarcharTupleValue) Size() int64 {
 	return int64(len(v.Value)) + 5
 }
 
+var ErrUnknownCommand = errors.New("unknown command")
+
 func UnpackSqliCommand(reader io.ReadSeeker) (SqliCommand, error) {
 	var cmd uint16
 	pos, err := reader.Seek(0, io.SeekCurrent)
@@ -670,7 +672,7 @@ func UnpackSqliCommand(reader io.ReadSeeker) (SqliCommand, error) {
 		}
 		return command, nil
 	default:
-		panic(cmd)
+		return nil, ErrUnknownCommand
 	}
 }
 
