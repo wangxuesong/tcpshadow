@@ -410,6 +410,102 @@ func (sq *SqliCost) Unpack(r io.Reader) error {
 	return unpacker.Error()
 }
 
+//SqliInfo SQ_INFO 81
+type SqliInfo struct {
+	MessageType int16
+	Length      int16
+	InfoEnv     InfoEnv
+}
+
+func (sq *SqliInfo) Command() uint16 {
+	return 81
+}
+
+func (sq *SqliInfo) Pack() ([]byte, error) {
+	buffer := new(bytes.Buffer)
+	packer := binpacker.NewPacker(binary.BigEndian, buffer)
+	packer.PushUint16(sq.Command()).
+		PushInt16(sq.MessageType).PushInt16(sq.Length)
+	env, err := sq.InfoEnv.Pack()
+	if err != nil {
+		return nil, err
+	}
+	buffer.Write(env)
+
+	packer.PushInt16(0)
+	packer.PushInt16(0)
+	return buffer.Bytes(), packer.Error()
+}
+
+func (sq *SqliInfo) Unpack(r io.Reader) error {
+	unpacker := binpacker.NewUnpacker(binary.BigEndian, r)
+	unpacker.FetchInt16(&sq.MessageType).
+		FetchInt16(&sq.Length)
+	err := sq.InfoEnv.Unpack(r)
+	if err != nil {
+		return err
+	}
+	var temp int16
+	unpacker.FetchInt16(&temp)
+	return unpacker.Error()
+}
+
+type InfoEnv struct {
+	NameLength  int16
+	ValueLength int16
+	Env         map[string]string
+}
+
+func (env *InfoEnv) Pack() ([]byte, error) {
+	buffer := new(bytes.Buffer)
+	packer := binpacker.NewPacker(binary.BigEndian, buffer)
+	packer.PushInt16(env.NameLength).PushInt16(env.ValueLength)
+	for k, v := range env.Env {
+		packer.PushInt16(int16(len(k))).PushString(k)
+		if len(k)%2 == 1 {
+			packer.PushByte(0) // Pad
+		}
+		packer.PushInt16(int16(len(v))).PushString(v)
+		if len(v)%2 == 1 {
+			packer.PushByte(0) // Pad
+		}
+
+	}
+	return buffer.Bytes(), packer.Error()
+}
+
+func (env *InfoEnv) Unpack(r io.Reader) error {
+	if env.Env == nil {
+		env.Env = make(map[string]string)
+	}
+	unpacker := binpacker.NewUnpacker(binary.BigEndian, r)
+	unpacker.FetchInt16(&env.NameLength).FetchInt16(&env.ValueLength)
+	for size, err := unpacker.ShiftInt16(); size != 0; {
+		if err != nil {
+			return err
+		}
+		var k, v string
+		unpacker.FetchString(uint64(size), &k)
+		if size%2 == 1 {
+			unpacker.ShiftByte() // Pad
+		}
+		unpacker.FetchInt16(&size).FetchString(uint64(size), &v)
+		if size%2 == 1 {
+			unpacker.ShiftByte() // Pad
+		}
+		if unpacker.Error() != nil {
+			return unpacker.Error()
+		}
+		env.Env[k] = v
+		size, err = unpacker.ShiftInt16()
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+//SqliProtocols SQ_PROTOCOLS 126
 type SqliProtocols struct {
 	Protocol []byte
 }
@@ -551,6 +647,14 @@ func UnpackSqliCommand(reader io.ReadSeeker) (SqliCommand, error) {
 		return command, nil
 	case 55:
 		command := &SqliCost{}
+		err = command.Unpack(reader)
+		if err != nil {
+			reader.Seek(pos, io.SeekStart)
+			return nil, err
+		}
+		return command, nil
+	case 81:
+		command := &SqliInfo{}
 		err = command.Unpack(reader)
 		if err != nil {
 			reader.Seek(pos, io.SeekStart)

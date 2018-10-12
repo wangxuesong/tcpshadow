@@ -167,3 +167,25 @@ func TestSqliProtocols_Pack_Unpack(t *testing.T) {
 	assert.NoError(t, err)
 	assert.EqualValues(t, pos, len(expect))
 }
+
+func TestSqliInfo_Pack(t *testing.T) {
+	expect := []byte{0, 81, 0, 6, 0, 38, 0, 12, 0, 4, 0, 6, 68, 66, 84, 69, 77, 80, 0, 4, 47, 116, 109, 112, 0, 11, 83, 85, 66, 81, 67, 65, 67, 72, 69, 83, 90, 0, 0, 2, 49, 48, 0, 0, 0, 0}
+	info := &SqliInfo{MessageType: 6, Length: 38, InfoEnv: InfoEnv{}}
+	info.InfoEnv.NameLength = 12
+	info.InfoEnv.ValueLength = 4
+	info.InfoEnv.Env = make(map[string]string)
+	info.InfoEnv.Env["DBTEMP"] = "/tmp"
+	info.InfoEnv.Env["SUBQCACHESZ"] = "10"
+	buf, err := info.Pack()
+	assert.NoError(t, err)
+	assert.Equal(t, expect, buf)
+
+	buffer := bytes.NewReader(expect)
+	cmd, err := UnpackSqliCommand(buffer)
+	assert.NoError(t, err)
+	assert.Equal(t, info, cmd)
+	pos, err := buffer.Seek(0, io.SeekCurrent)
+	assert.NoError(t, err)
+	assert.EqualValues(t, pos, len(expect))
+
+}
