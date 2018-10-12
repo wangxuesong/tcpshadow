@@ -62,23 +62,18 @@ var showCmd = &cobra.Command{
 		scs := spew.NewDefaultConfig()
 		scs.Indent = "    "
 		printPack := func(colorStr string, a interface{}) {
-			if color {
-				scs.Print(colorStr)
-				if raw {
-					scs.Printf("%v\n", a)
-				} else {
-					scs.Dump(a)
-				}
-				scs.Println(CLEAR)
-			} else {
-				if raw {
-					scs.Printf("%v\n", a)
-				} else {
-					scs.Dump(a)
-				}
-				scs.Println()
+			if !color {
+				colorStr = ""
 			}
+			scs.Print(colorStr)
+			if raw {
+				scs.Printf("%v\n", a)
+			} else {
+				scs.Dump(a)
+			}
+			scs.Println(CLEAR)
 		}
+
 		for _, pack := range packages {
 			switch pack.Forward {
 			case model.ClientToServer:
