@@ -130,6 +130,9 @@ func (s *Service) Serve(listener *net.TCPListener) {
 				log.Printf("Can't open file with %s\n", err)
 			}
 			defer file.Close()
+			if err := file.Truncate(0); err != nil{
+				panic(err)
+			}
 
 			index := 0
 			for {
