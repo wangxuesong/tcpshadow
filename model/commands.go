@@ -115,6 +115,22 @@ func (sq *SqliID) Unpack(r io.Reader) error {
 	return unpacker.Error()
 }
 
+//SqliOpen SQ_OPEN 6
+type SqliOpen struct {
+}
+
+func (*SqliOpen) Command() uint16 {
+	return 6
+}
+
+func (*SqliOpen) Pack() ([]byte, error) {
+	return []byte{0, 6}, nil
+}
+
+func (*SqliOpen) Unpack(r io.Reader) error {
+	panic("implement me")
+}
+
 //SqliDescribe SQ_DESCRIBE 8
 type SqliDescribe struct {
 	StatementType uint16
@@ -764,6 +780,9 @@ func UnpackSqliCommand(reader io.ReadSeeker) (SqliCommand, error) {
 			reader.Seek(pos, io.SeekStart)
 			return nil, err
 		}
+		return command, nil
+	case 6:
+		command := &SqliOpen{}
 		return command, nil
 	case 8:
 		command := &SqliDescribe{}
