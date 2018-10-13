@@ -317,3 +317,19 @@ func TestSqliOpen_Pack_Unpack(t *testing.T) {
 	assert.NoError(t, err)
 	assert.EqualValues(t, pos, len(expect))
 }
+
+func TestSqliCurName_Pack_Unpack(t *testing.T) {
+	curName := &SqliCurName{CurName: "_ifxc0000000000008"}
+	buf, err := curName.Pack()
+	expect := []byte{0, 3, 0, 18, 95, 105, 102, 120, 99, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 56}
+	assert.NoError(t, err)
+	assert.Equal(t, expect, buf)
+
+	buffer := bytes.NewReader(expect)
+	cmd, err := UnpackSqliCommand(buffer)
+	assert.NoError(t, err)
+	assert.Equal(t, curName, cmd)
+	pos, err := buffer.Seek(0, io.SeekCurrent)
+	assert.NoError(t, err)
+	assert.EqualValues(t, pos, len(expect))
+}

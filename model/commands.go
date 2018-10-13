@@ -91,6 +91,40 @@ func (sq *SqliPrepare) Unpack(r io.Reader) error {
 	return unpacker.Error()
 }
 
+//SqliCurName SQ_CURNAME 3
+type SqliCurName struct {
+	CurName string
+}
+
+func (*SqliCurName) Command() uint16 {
+	return 3
+}
+
+func (sq *SqliCurName) Pack() ([]byte, error) {
+	buffer := new(bytes.Buffer)
+	packer := binpacker.NewPacker(binary.BigEndian, buffer)
+	packer.PushUint16(sq.Command())
+	packer.PushUint16(uint16(len(sq.CurName)))
+	packer.PushBytes([]byte(sq.CurName))
+	if len(sq.CurName)%2 == 1 {
+		packer.PushByte(0)
+	}
+
+	return buffer.Bytes(), packer.Error()
+}
+
+func (sq *SqliCurName) Unpack(r io.Reader) error {
+	unpacker := binpacker.NewUnpacker(binary.BigEndian, r)
+	var size uint16
+	unpacker.FetchUint16(&size).
+		FetchString(uint64(size), &sq.CurName)
+	if size%2 == 1 {
+		var tmp byte
+		unpacker.FetchByte(&tmp)
+	}
+	return unpacker.Error()
+}
+
 //SqliID SQ_ID 4
 type SqliID struct {
 	ID int16
@@ -767,6 +801,14 @@ func UnpackSqliCommand(reader io.ReadSeeker) (SqliCommand, error) {
 	switch cmd {
 	case 2:
 		command := &SqliPrepare{}
+		err = command.Unpack(reader)
+		if err != nil {
+			reader.Seek(pos, io.SeekStart)
+			return nil, err
+		}
+		return command, nil
+	case 3:
+		command := &SqliCurName{}
 		err = command.Unpack(reader)
 		if err != nil {
 			reader.Seek(pos, io.SeekStart)
