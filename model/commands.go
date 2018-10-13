@@ -402,6 +402,40 @@ func (*SqliNDescribe) Unpack(r io.Reader) error {
 	return nil
 }
 
+//SqliDBOpen SQ_DBOPEN 36
+type SqliDBOpen struct {
+	DBName string
+	Foo    int16 // TODO: Naming
+}
+
+func (sq *SqliDBOpen) Command() uint16 {
+	return 36
+}
+
+func (sq *SqliDBOpen) Pack() ([]byte, error) {
+	buffer := new(bytes.Buffer)
+	packer := binpacker.NewPacker(binary.BigEndian, buffer)
+	packer.PushUint16(sq.Command())
+	packer.PushInt16(int16(len(sq.DBName))).
+		PushString(sq.DBName).
+		PushInt16(sq.Foo)
+	return buffer.Bytes(), packer.Error()
+}
+
+func (sq *SqliDBOpen) Unpack(r io.Reader) error {
+	unpacker := binpacker.NewUnpacker(binary.BigEndian, r)
+	var size uint16
+	unpacker.
+		FetchUint16(&size).
+		FetchString(uint64(size), &sq.DBName)
+	if size%2 == 1 {
+		var tmp byte
+		unpacker.FetchByte(&tmp)
+	}
+	unpacker.FetchInt16(&sq.Foo)
+	return unpacker.Error()
+}
+
 //SqliWantDone SQ_WANTDONE 49
 type SqliWantDone struct {
 }
@@ -696,6 +730,14 @@ func UnpackSqliCommand(reader io.ReadSeeker) (SqliCommand, error) {
 		return command, nil
 	case 22:
 		command := &SqliNDescribe{}
+		return command, nil
+	case 36:
+		command := &SqliDBOpen{}
+		err = command.Unpack(reader)
+		if err != nil {
+			reader.Seek(pos, io.SeekStart)
+			return nil, err
+		}
 		return command, nil
 	case 49:
 		command := &SqliWantDone{}

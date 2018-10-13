@@ -237,3 +237,19 @@ func TestSqliWantDone_Pack_Unpack(t *testing.T) {
 	assert.NoError(t, err)
 	assert.EqualValues(t, pos, len(expect))
 }
+
+func TestSqliDBOpen_Pack_Unpack(t *testing.T) {
+	dbOpen := &SqliDBOpen{DBName: "test", Foo: 0}
+	buf, err := dbOpen.Pack()
+	expect := []byte{00, 0x24, 0x00, 0x04, 0x74, 0x65, 0x73, 0x74, 0x00, 0x00}
+	assert.NoError(t, err)
+	assert.Equal(t, expect, buf)
+
+	buffer := bytes.NewReader(expect)
+	cmd, err := UnpackSqliCommand(buffer)
+	assert.NoError(t, err)
+	assert.Equal(t, dbOpen, cmd)
+	pos, err := buffer.Seek(0, io.SeekCurrent)
+	assert.NoError(t, err)
+	assert.EqualValues(t, pos, len(expect))
+}
