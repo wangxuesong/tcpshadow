@@ -320,6 +320,33 @@ type SqliField struct {
 	Name                    string
 }
 
+//SqliNFetch SQ_NFETCH 9
+type SqliNFetch struct {
+	TupleBufferSize uint32
+	FetchArraySize  uint16
+}
+
+func (*SqliNFetch) Command() uint16 {
+	return 9
+}
+
+func (sq *SqliNFetch) Pack() ([]byte, error) {
+	buffer := new(bytes.Buffer)
+	packer := binpacker.NewPacker(binary.BigEndian, buffer)
+	packer.PushUint16(sq.Command()).
+		PushUint32(sq.TupleBufferSize).
+		PushUint16(sq.FetchArraySize)
+
+	return buffer.Bytes(), packer.Error()
+}
+
+func (sq *SqliNFetch) Unpack(r io.Reader) error {
+	unpacker := binpacker.NewUnpacker(binary.BigEndian, r)
+	unpacker.FetchUint32(&sq.TupleBufferSize).
+		FetchUint16(&sq.FetchArraySize)
+	return unpacker.Error()
+}
+
 //SqliClose SQ_CLOSE 10
 type SqliClose struct {
 }
@@ -828,6 +855,14 @@ func UnpackSqliCommand(reader io.ReadSeeker) (SqliCommand, error) {
 		return command, nil
 	case 8:
 		command := &SqliDescribe{}
+		err = command.Unpack(reader)
+		if err != nil {
+			reader.Seek(pos, io.SeekStart)
+			return nil, err
+		}
+		return command, nil
+	case 9:
+		command := &SqliNFetch{}
 		err = command.Unpack(reader)
 		if err != nil {
 			reader.Seek(pos, io.SeekStart)

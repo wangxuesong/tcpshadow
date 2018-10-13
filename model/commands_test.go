@@ -333,3 +333,19 @@ func TestSqliCurName_Pack_Unpack(t *testing.T) {
 	assert.NoError(t, err)
 	assert.EqualValues(t, pos, len(expect))
 }
+
+func TestSqliNFetch_Pack_Unpack(t *testing.T) {
+	sqliNFetch := &SqliNFetch{TupleBufferSize: 4096, FetchArraySize: 0}
+	buf, err := sqliNFetch.Pack()
+	expect := []byte{0, 9, 0, 0, 16, 0, 0, 0}
+	assert.NoError(t, err)
+	assert.Equal(t, expect, buf)
+
+	buffer := bytes.NewReader(expect)
+	cmd, err := UnpackSqliCommand(buffer)
+	assert.NoError(t, err)
+	assert.Equal(t, sqliNFetch, cmd)
+	pos, err := buffer.Seek(0, io.SeekCurrent)
+	assert.NoError(t, err)
+	assert.EqualValues(t, pos, len(expect))
+}
