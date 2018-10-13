@@ -205,3 +205,35 @@ func TestSqliExit_Pack_Unpack(t *testing.T) {
 	assert.NoError(t, err)
 	assert.EqualValues(t, pos, len(expect))
 }
+
+func TestSqliNDescribe_Pack_Unpack(t *testing.T) {
+	nDesc := &SqliNDescribe{}
+	buf, err := nDesc.Pack()
+	expect := []byte{0, 22}
+	assert.NoError(t, err)
+	assert.Equal(t, expect, buf)
+
+	buffer := bytes.NewReader(expect)
+	cmd, err := UnpackSqliCommand(buffer)
+	assert.NoError(t, err)
+	assert.Equal(t, nDesc, cmd)
+	pos, err := buffer.Seek(0, io.SeekCurrent)
+	assert.NoError(t, err)
+	assert.EqualValues(t, pos, len(expect))
+}
+
+func TestSqliWantDone_Pack_Unpack(t *testing.T) {
+	wantDone := &SqliWantDone{}
+	buf, err := wantDone.Pack()
+	expect := []byte{0, 49}
+	assert.NoError(t, err)
+	assert.Equal(t, expect, buf)
+
+	buffer := bytes.NewReader(expect)
+	cmd, err := UnpackSqliCommand(buffer)
+	assert.NoError(t, err)
+	assert.Equal(t, wantDone, cmd)
+	pos, err := buffer.Seek(0, io.SeekCurrent)
+	assert.NoError(t, err)
+	assert.EqualValues(t, pos, len(expect))
+}

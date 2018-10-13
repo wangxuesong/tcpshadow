@@ -386,6 +386,38 @@ func (sq *SqliDone) Unpack(r io.Reader) error {
 	return unpacker.Error()
 }
 
+//SqliNDescribe SQ_NDESCRIBE 22
+type SqliNDescribe struct {
+}
+
+func (*SqliNDescribe) Command() uint16 {
+	return 22
+}
+
+func (*SqliNDescribe) Pack() ([]byte, error) {
+	return []byte{0, 22}, nil
+}
+
+func (*SqliNDescribe) Unpack(r io.Reader) error {
+	return nil
+}
+
+//SqliWantDone SQ_WANTDONE 49
+type SqliWantDone struct {
+}
+
+func (*SqliWantDone) Command() uint16 {
+	return 49
+}
+
+func (*SqliWantDone) Pack() ([]byte, error) {
+	return []byte{0, 49}, nil
+}
+
+func (*SqliWantDone) Unpack(r io.Reader) error {
+	return nil
+}
+
 //SqliCost SQ_COST 55
 type SqliCost struct {
 	EstimatedRows uint32
@@ -661,6 +693,12 @@ func UnpackSqliCommand(reader io.ReadSeeker) (SqliCommand, error) {
 			reader.Seek(pos, io.SeekStart)
 			return nil, err
 		}
+		return command, nil
+	case 22:
+		command := &SqliNDescribe{}
+		return command, nil
+	case 49:
+		command := &SqliWantDone{}
 		return command, nil
 	case 55:
 		command := &SqliCost{}
