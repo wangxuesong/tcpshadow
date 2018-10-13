@@ -15,6 +15,7 @@
 package cmd
 
 import (
+	"bytes"
 	"github.com/davecgh/go-spew/spew"
 	"github.com/wangxuesong/tcpshadow/model"
 
@@ -61,17 +62,33 @@ var showCmd = &cobra.Command{
 		packages := ReadPackages()
 		scs := spew.NewDefaultConfig()
 		scs.Indent = "    "
-		printPack := func(colorStr string, a interface{}) {
+		printPack := func(colorStr string, savePackage model.SavePackage) {
+			clearStr := CLEAR
+			warningStr := RED
 			if !color {
 				colorStr = ""
+				clearStr = ""
+				warningStr = ""
 			}
 			scs.Print(colorStr)
 			if raw {
-				scs.Printf("%v\n", a)
+				scs.Printf("%v\n", savePackage)
 			} else {
-				scs.Dump(a)
+				if print && savePackage.Number >= 2 {
+					reader := bytes.NewReader(savePackage.Buffer)
+					cmds, err := model.UnpackSqliTransmission(reader)
+					if err != nil {
+						scs.Print(warningStr)
+						scs.Println(err)
+						scs.Dump(savePackage)
+					} else {
+						scs.Dump(cmds)
+					}
+				} else {
+					scs.Dump(savePackage)
+				}
 			}
-			scs.Println(CLEAR)
+			scs.Println(clearStr)
 		}
 
 		for _, pack := range packages {
@@ -100,4 +117,5 @@ func init() {
 	showCmd.MarkFlagRequired("input")
 	showCmd.Flags().BoolVarP(&color, "color", "c", false, "print with color")
 	showCmd.Flags().BoolVarP(&raw, "raw", "r", false, "show raw")
+	showCmd.Flags().BoolVarP(&print, "parse", "p", false, "parse package")
 }
