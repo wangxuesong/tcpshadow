@@ -270,6 +270,38 @@ type SqliField struct {
 	Name                    string
 }
 
+//SqliClose SQ_CLOSE 10
+type SqliClose struct {
+}
+
+func (*SqliClose) Command() uint16 {
+	return 10
+}
+
+func (*SqliClose) Pack() ([]byte, error) {
+	return []byte{0, 10}, nil
+}
+
+func (*SqliClose) Unpack(r io.Reader) error {
+	panic("implement me")
+}
+
+//SqliRelease SQ_RELEASE 11
+type SqliRelease struct {
+}
+
+func (*SqliRelease) Command() uint16 {
+	return 11
+}
+
+func (*SqliRelease) Pack() ([]byte, error) {
+	return []byte{0, 11}, nil
+}
+
+func (*SqliRelease) Unpack(r io.Reader) error {
+	panic("implement me")
+}
+
 //SqliEot SQ_EOT 12
 type SqliEot struct {
 }
@@ -740,6 +772,12 @@ func UnpackSqliCommand(reader io.ReadSeeker) (SqliCommand, error) {
 			reader.Seek(pos, io.SeekStart)
 			return nil, err
 		}
+		return command, nil
+	case 10:
+		command := &SqliClose{}
+		return command, nil
+	case 11:
+		command := &SqliRelease{}
 		return command, nil
 	case 12:
 		command := &SqliEot{}
