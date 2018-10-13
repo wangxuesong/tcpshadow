@@ -411,6 +411,22 @@ func (sq *SqliCost) Unpack(r io.Reader) error {
 	return unpacker.Error()
 }
 
+//SqliExit SQ_EXIT 56
+type SqliExit struct {
+}
+
+func (*SqliExit) Command() uint16 {
+	return 56
+}
+
+func (*SqliExit) Pack() ([]byte, error) {
+	return []byte{0, 56}, nil
+}
+
+func (*SqliExit) Unpack(r io.Reader) error {
+	return nil
+}
+
 //SqliInfo SQ_INFO 81
 type SqliInfo struct {
 	MessageType int16
@@ -598,8 +614,6 @@ func (v *LVarcharTupleValue) Size() int64 {
 	return int64(len(v.Value)) + 5
 }
 
-var ErrUnknownCommand = errors.New("unknown command")
-
 func UnpackSqliCommand(reader io.ReadSeeker) (SqliCommand, error) {
 	var cmd uint16
 	pos, err := reader.Seek(0, io.SeekCurrent)
@@ -655,6 +669,9 @@ func UnpackSqliCommand(reader io.ReadSeeker) (SqliCommand, error) {
 			reader.Seek(pos, io.SeekStart)
 			return nil, err
 		}
+		return command, nil
+	case 56:
+		command := &SqliExit{}
 		return command, nil
 	case 81:
 		command := &SqliInfo{}
