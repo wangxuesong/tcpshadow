@@ -200,6 +200,22 @@ func (*SqliOpen) Unpack(r io.Reader) error {
 	panic("implement me")
 }
 
+//SqliExecute SQ_EXECUTE 7
+type SqliExecute struct {
+}
+
+func (*SqliExecute) Command() uint16 {
+	return 7
+}
+
+func (*SqliExecute) Pack() ([]byte, error) {
+	return []byte{0, 7}, nil
+}
+
+func (*SqliExecute) Unpack(r io.Reader) error {
+	panic("implement me")
+}
+
 //SqliDescribe SQ_DESCRIBE 8
 type SqliDescribe struct {
 	StatementType uint16
@@ -705,6 +721,46 @@ func (sq *SqliInfo) Unpack(r io.Reader) error {
 	return unpacker.Error()
 }
 
+//SqliInsertDone SQ_INSERTDONE 94
+type SqliInsertDone struct {
+	Serial8   int64
+	BigSerial uint64
+}
+
+func (sq *SqliInsertDone) Command() uint16 {
+	return 94
+}
+
+func (sq *SqliInsertDone) Pack() ([]byte, error) {
+	buffer := new(bytes.Buffer)
+	packer := binpacker.NewPacker(binary.BigEndian, buffer)
+	var sign uint16
+	var serial uint64
+	if sq.Serial8 < 0 {
+		sign = 0
+		serial = uint64(-sq.Serial8)
+	} else {
+		sign = 1
+		serial = uint64(sq.Serial8)
+	}
+	packer.PushUint16(sq.Command()).PushUint16(sign).PushUint64(serial).PushUint64(sq.BigSerial)
+	return buffer.Bytes(), packer.Error()
+}
+
+func (sq *SqliInsertDone) Unpack(r io.Reader) error {
+	unpacker := binpacker.NewUnpacker(binary.BigEndian, r)
+	var sign uint16
+	var serial uint64
+	unpacker.FetchUint16(&sign).
+		FetchUint64(&serial).FetchUint64(&sq.BigSerial)
+	if sign == 0 {
+		sq.Serial8 = -int64(serial)
+	} else {
+		sq.Serial8 = int64(serial)
+	}
+	return unpacker.Error()
+}
+
 type InfoEnv struct {
 	NameLength  int16
 	ValueLength int16
@@ -900,6 +956,9 @@ func UnpackSqliCommand(reader io.ReadSeeker) (SqliCommand, error) {
 	case 6:
 		command := &SqliOpen{}
 		return command, nil
+	case 7:
+		command := &SqliExecute{}
+		return command, nil
 	case 8:
 		command := &SqliDescribe{}
 		err = command.Unpack(reader)
@@ -968,6 +1027,14 @@ func UnpackSqliCommand(reader io.ReadSeeker) (SqliCommand, error) {
 		return command, nil
 	case 81:
 		command := &SqliInfo{}
+		err = command.Unpack(reader)
+		if err != nil {
+			reader.Seek(pos, io.SeekStart)
+			return nil, err
+		}
+		return command, nil
+	case 94:
+		command := &SqliInsertDone{}
 		err = command.Unpack(reader)
 		if err != nil {
 			reader.Seek(pos, io.SeekStart)
