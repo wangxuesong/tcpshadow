@@ -251,6 +251,10 @@ func (sq *SqliDescribe) unpackStringTable(r io.Reader) error {
 	unpacker := binpacker.NewUnpacker(binary.BigEndian, r)
 	var temp string
 	unpacker.FetchString(uint64(sq.StringTable), &temp)
+	if sq.StringTable%2 == 1 {
+		var b byte
+		unpacker.FetchByte(&b)
+	}
 	names := strings.Split(temp, string(0))
 	if len(names)-1 != int(sq.CountOfFields) {
 		return errors.New("unpack string table error")
