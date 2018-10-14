@@ -816,6 +816,47 @@ func (env *InfoEnv) Unpack(r io.Reader) error {
 	return nil
 }
 
+//SqliRetType SQ_RETTYPE 100
+type SqliRetType struct {
+	Direction uint16
+	Columns   []ColumnType
+}
+
+func (sq *SqliRetType) Command() uint16 {
+	return 100
+}
+
+func (sq *SqliRetType) Pack() ([]byte, error) {
+	buffer := new(bytes.Buffer)
+	packer := binpacker.NewPacker(binary.BigEndian, buffer)
+	packer.PushUint16(sq.Command()).PushUint16(sq.Direction).
+		PushUint16(uint16(len(sq.Columns)))
+	for _, c := range sq.Columns {
+		packer.PushUint16(c.Type).PushUint32(c.Length)
+	}
+	return buffer.Bytes(), packer.Error()
+}
+
+func (sq *SqliRetType) Unpack(r io.Reader) error {
+	unpacker := binpacker.NewUnpacker(binary.BigEndian, r)
+	var count uint16
+	unpacker.FetchUint16(&sq.Direction).
+		FetchUint16(&count)
+	sq.Columns = make([]ColumnType, 0, count)
+	for i := 0; i < int(count); i++ {
+		var c ColumnType
+		unpacker.FetchUint16(&c.Type).
+			FetchUint32(&c.Length)
+		sq.Columns = append(sq.Columns, c)
+	}
+	return unpacker.Error()
+}
+
+type ColumnType struct {
+	Type   uint16
+	Length uint32
+}
+
 //SqliProtocols SQ_PROTOCOLS 126
 type SqliProtocols struct {
 	Protocol []byte
@@ -1035,6 +1076,14 @@ func UnpackSqliCommand(reader io.ReadSeeker) (SqliCommand, error) {
 		return command, nil
 	case 94:
 		command := &SqliInsertDone{}
+		err = command.Unpack(reader)
+		if err != nil {
+			reader.Seek(pos, io.SeekStart)
+			return nil, err
+		}
+		return command, nil
+	case 100:
+		command := &SqliRetType{}
 		err = command.Unpack(reader)
 		if err != nil {
 			reader.Seek(pos, io.SeekStart)

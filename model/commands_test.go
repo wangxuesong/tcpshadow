@@ -383,8 +383,8 @@ func TestSqliExecute_Pack_Unpack(t *testing.T) {
 }
 
 func TestSqliInsertDone_Pack_Unpack(t *testing.T) {
-	release := &SqliInsertDone{Serial8: 0, BigSerial: 0}
-	buf, err := release.Pack()
+	sqliInsertDone := &SqliInsertDone{Serial8: 0, BigSerial: 0}
+	buf, err := sqliInsertDone.Pack()
 	expect := []byte{0, 94, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
 	assert.NoError(t, err)
 	assert.Equal(t, expect, buf)
@@ -392,7 +392,25 @@ func TestSqliInsertDone_Pack_Unpack(t *testing.T) {
 	buffer := bytes.NewReader(expect)
 	cmd, err := UnpackSqliCommand(buffer)
 	assert.NoError(t, err)
-	assert.Equal(t, release, cmd)
+	assert.Equal(t, sqliInsertDone, cmd)
+	pos, err := buffer.Seek(0, io.SeekCurrent)
+	assert.NoError(t, err)
+	assert.EqualValues(t, pos, len(expect))
+}
+
+func TestSqliRetType_Pack_Unpack(t *testing.T) {
+	sqliRetType := &SqliRetType{Direction: 1, Columns: make([]ColumnType, 0)}
+	column := ColumnType{Type: 13, Length: 128}
+	sqliRetType.Columns = append(sqliRetType.Columns, column)
+	buf, err := sqliRetType.Pack()
+	expect := []byte{0, 100, 0, 1, 0, 1, 0, 13, 0, 0, 0, 128}
+	assert.NoError(t, err)
+	assert.Equal(t, expect, buf)
+
+	buffer := bytes.NewReader(expect)
+	cmd, err := UnpackSqliCommand(buffer)
+	assert.NoError(t, err)
+	assert.Equal(t, sqliRetType, cmd)
 	pos, err := buffer.Seek(0, io.SeekCurrent)
 	assert.NoError(t, err)
 	assert.EqualValues(t, pos, len(expect))
