@@ -450,6 +450,49 @@ func (*SqliEot) Unpack(r io.Reader) error {
 	panic("implement me")
 }
 
+//SqliErr SQ_ERR 13
+type SqliErr struct {
+	SQLCode   int16
+	RSAMError int16
+	Offset    uint32
+	SQLerrm   string
+}
+
+func (*SqliErr) Command() uint16 {
+	return 13
+}
+
+func (sq *SqliErr) Pack() ([]byte, error) {
+	buffer := new(bytes.Buffer)
+	packer := binpacker.NewPacker(binary.BigEndian, buffer)
+	packer.PushUint16(sq.Command())
+	size := len(sq.SQLerrm)
+	packer.PushInt16(sq.SQLCode).
+		PushInt16(sq.RSAMError).
+		PushUint32(sq.Offset).
+		PushUint16(uint16(size)).
+		PushString(sq.SQLerrm)
+	if size%2 == 1 {
+		packer.PushByte(0)
+	}
+	return buffer.Bytes(), packer.Error()
+}
+
+func (sq *SqliErr) Unpack(r io.Reader) error {
+	var size uint16
+	unpacker := binpacker.NewUnpacker(binary.BigEndian, r)
+	unpacker.FetchInt16(&sq.SQLCode).
+		FetchInt16(&sq.RSAMError).
+		FetchUint32(&sq.Offset).
+		FetchUint16(&size).
+		FetchString(uint64(size), &sq.SQLerrm)
+	if size%2 == 1 {
+		var b byte
+		unpacker.FetchByte(&b)
+	}
+	return unpacker.Error()
+}
+
 //SqliTuple SQ_TUPLE 14
 type SqliTuple struct {
 	Warnings   uint16
@@ -1024,6 +1067,14 @@ func UnpackSqliCommand(reader io.ReadSeeker) (SqliCommand, error) {
 		return command, nil
 	case 12:
 		command := &SqliEot{}
+		return command, nil
+	case 13:
+		command := &SqliErr{}
+		err = command.Unpack(reader)
+		if err != nil {
+			reader.Seek(pos, io.SeekStart)
+			return nil, err
+		}
 		return command, nil
 	case 14:
 		command := &SqliTuple{}

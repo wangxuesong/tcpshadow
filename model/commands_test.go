@@ -415,3 +415,19 @@ func TestSqliRetType_Pack_Unpack(t *testing.T) {
 	assert.NoError(t, err)
 	assert.EqualValues(t, pos, len(expect))
 }
+
+func TestSqliErr_Pack_Unpack(t *testing.T) {
+	sqliErr := &SqliErr{SQLCode: -206, RSAMError: -111, Offset: 0xc, SQLerrm: "x"}
+	buf, err := sqliErr.Pack()
+	expect := []byte{0, 13, 255, 50, 255, 145, 0, 0, 0, 12, 0, 1, 120, 0}
+	assert.NoError(t, err)
+	assert.Equal(t, expect, buf)
+
+	buffer := bytes.NewReader(expect)
+	cmd, err := UnpackSqliCommand(buffer)
+	assert.NoError(t, err)
+	assert.Equal(t, sqliErr, cmd)
+	pos, err := buffer.Seek(0, io.SeekCurrent)
+	assert.NoError(t, err)
+	assert.EqualValues(t, pos, len(expect))
+}
