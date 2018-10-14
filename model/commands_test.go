@@ -349,3 +349,19 @@ func TestSqliNFetch_Pack_Unpack(t *testing.T) {
 	assert.NoError(t, err)
 	assert.EqualValues(t, pos, len(expect))
 }
+
+func TestSqliCmd_Pack_Unpack(t *testing.T) {
+	sqliCmd := &SqliCmd{Sql: "insert into x values (22, 'sweet');"}
+	buf, err := sqliCmd.Pack()
+	expect := []byte{0, 1, 0, 0, 0, 0, 0, 35, 105, 110, 115, 101, 114, 116, 32, 105, 110, 116, 111, 32, 120, 32, 118, 97, 108, 117, 101, 115, 32, 40, 50, 50, 44, 32, 39, 115, 119, 101, 101, 116, 39, 41, 59, 0}
+	assert.NoError(t, err)
+	assert.Equal(t, expect, buf)
+
+	buffer := bytes.NewReader(expect)
+	cmd, err := UnpackSqliCommand(buffer)
+	assert.NoError(t, err)
+	assert.Equal(t, sqliCmd, cmd)
+	pos, err := buffer.Seek(0, io.SeekCurrent)
+	assert.NoError(t, err)
+	assert.EqualValues(t, pos, len(expect))
+}

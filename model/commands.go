@@ -54,6 +54,41 @@ func (t *SqliTransmission) Append(cmd SqliCommand) {
 	*t = append(*t, cmd)
 }
 
+//SqliCmd SQ_COMMAND 1
+type SqliCmd struct {
+	Sql string
+}
+
+func (*SqliCmd) Command() uint16 {
+	return 1
+}
+
+func (sq *SqliCmd) Pack() ([]byte, error) {
+	buffer := new(bytes.Buffer)
+	packer := binpacker.NewPacker(binary.BigEndian, buffer)
+	packer.PushUint16(sq.Command()).PushUint16(0)
+	packer.PushUint32(uint32(len(sq.Sql)))
+	packer.PushBytes([]byte(sq.Sql))
+	if len(sq.Sql)%2 == 1 {
+		packer.PushByte(0)
+	}
+
+	return buffer.Bytes(), packer.Error()
+}
+
+func (sq *SqliCmd) Unpack(r io.Reader) error {
+	unpacker := binpacker.NewUnpacker(binary.BigEndian, r)
+	var size uint32
+	var foo uint16
+	unpacker.FetchUint16(&foo).FetchUint32(&size).
+		FetchString(uint64(size), &sq.Sql)
+	if size%2 == 1 {
+		var tmp byte
+		unpacker.FetchByte(&tmp)
+	}
+	return unpacker.Error()
+}
+
 //SqliPrepare SQ_PREPARE 2
 type SqliPrepare struct {
 	QMarks uint16
@@ -830,6 +865,14 @@ func UnpackSqliCommand(reader io.ReadSeeker) (SqliCommand, error) {
 	}
 
 	switch cmd {
+	case 1:
+		command := &SqliCmd{}
+		err = command.Unpack(reader)
+		if err != nil {
+			reader.Seek(pos, io.SeekStart)
+			return nil, err
+		}
+		return command, nil
 	case 2:
 		command := &SqliPrepare{}
 		err = command.Unpack(reader)
