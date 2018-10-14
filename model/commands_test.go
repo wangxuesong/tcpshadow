@@ -367,8 +367,8 @@ func TestSqliCmd_Pack_Unpack(t *testing.T) {
 }
 
 func TestSqliExecute_Pack_Unpack(t *testing.T) {
-	release := &SqliExecute{}
-	buf, err := release.Pack()
+	sqliExecute := &SqliExecute{}
+	buf, err := sqliExecute.Pack()
 	expect := []byte{0, 7}
 	assert.NoError(t, err)
 	assert.Equal(t, expect, buf)
@@ -376,7 +376,7 @@ func TestSqliExecute_Pack_Unpack(t *testing.T) {
 	buffer := bytes.NewReader(expect)
 	cmd, err := UnpackSqliCommand(buffer)
 	assert.NoError(t, err)
-	assert.Equal(t, release, cmd)
+	assert.Equal(t, sqliExecute, cmd)
 	pos, err := buffer.Seek(0, io.SeekCurrent)
 	assert.NoError(t, err)
 	assert.EqualValues(t, pos, len(expect))
@@ -445,6 +445,22 @@ func TestSqliBind_Pack_Unpack(t *testing.T) {
 	cmd, err := UnpackSqliCommand(buffer)
 	assert.NoError(t, err)
 	assert.Equal(t, sqliBind, cmd)
+	pos, err := buffer.Seek(0, io.SeekCurrent)
+	assert.NoError(t, err)
+	assert.EqualValues(t, pos, len(expect))
+}
+
+func TestSqliAutoFree_Pack_Unpack(t *testing.T) {
+	sqliAutoFree := &SqliAutoFree{}
+	buf, err := sqliAutoFree.Pack()
+	expect := []byte{0, 108}
+	assert.NoError(t, err)
+	assert.Equal(t, expect, buf)
+
+	buffer := bytes.NewReader(expect)
+	cmd, err := UnpackSqliCommand(buffer)
+	assert.NoError(t, err)
+	assert.Equal(t, sqliAutoFree, cmd)
 	pos, err := buffer.Seek(0, io.SeekCurrent)
 	assert.NoError(t, err)
 	assert.EqualValues(t, pos, len(expect))

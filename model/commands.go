@@ -954,6 +954,22 @@ type ColumnType struct {
 	Length uint32
 }
 
+//SqliAutoFree SQ_AUTOFREE 108
+type SqliAutoFree struct {
+}
+
+func (*SqliAutoFree) Command() uint16 {
+	return 108
+}
+
+func (*SqliAutoFree) Pack() ([]byte, error) {
+	return []byte{0, 108}, nil
+}
+
+func (*SqliAutoFree) Unpack(r io.Reader) error {
+	panic("implement me")
+}
+
 //SqliProtocols SQ_PROTOCOLS 126
 type SqliProtocols struct {
 	Protocol []byte
@@ -1202,6 +1218,9 @@ func UnpackSqliCommand(reader io.ReadSeeker) (SqliCommand, error) {
 			reader.Seek(pos, io.SeekStart)
 			return nil, err
 		}
+		return command, nil
+	case 108:
+		command := &SqliAutoFree{}
 		return command, nil
 	case 126:
 		command := &SqliProtocols{}
