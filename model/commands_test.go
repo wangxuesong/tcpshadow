@@ -431,3 +431,21 @@ func TestSqliErr_Pack_Unpack(t *testing.T) {
 	assert.NoError(t, err)
 	assert.EqualValues(t, pos, len(expect))
 }
+
+func TestSqliBind_Pack_Unpack(t *testing.T) {
+	sqliBind := &SqliBind{}
+	col := BindColumn{Type: 2, Indicator: 0, Precision: 2560, Data: 11}
+	sqliBind.Columns = append(sqliBind.Columns, col)
+	buf, err := sqliBind.Pack()
+	expect := []byte{0, 5, 0, 1, 0, 2, 0, 0, 10, 0, 0, 0, 0, 11}
+	assert.NoError(t, err)
+	assert.Equal(t, expect, buf)
+
+	buffer := bytes.NewReader(expect)
+	cmd, err := UnpackSqliCommand(buffer)
+	assert.NoError(t, err)
+	assert.Equal(t, sqliBind, cmd)
+	pos, err := buffer.Seek(0, io.SeekCurrent)
+	assert.NoError(t, err)
+	assert.EqualValues(t, pos, len(expect))
+}

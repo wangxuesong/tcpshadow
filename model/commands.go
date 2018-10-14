@@ -184,6 +184,60 @@ func (sq *SqliID) Unpack(r io.Reader) error {
 	return unpacker.Error()
 }
 
+//SqliBind SQ_BIND 5
+type SqliBind struct {
+	Columns []BindColumn
+}
+
+func (sq *SqliBind) Command() uint16 {
+	return 5
+}
+
+func (sq *SqliBind) Pack() ([]byte, error) {
+	buffer := new(bytes.Buffer)
+	packer := binpacker.NewPacker(binary.BigEndian, buffer)
+	packer.PushUint16(sq.Command())
+	size := int16(len(sq.Columns))
+	packer.PushInt16(size)
+
+	for _, c := range sq.Columns {
+		var precisionLow, precisionHigh uint16
+		precisionHigh = uint16(c.Precision >> 16)
+		precisionLow = uint16(c.Precision)
+		packer.PushInt16(c.Type).
+			PushInt16(c.Indicator).
+			PushUint16(precisionLow).PushUint16(precisionHigh).
+			PushUint16(c.Data)
+	}
+
+	return buffer.Bytes(), packer.Error()
+}
+
+func (sq *SqliBind) Unpack(r io.Reader) error {
+	unpacker := binpacker.NewUnpacker(binary.BigEndian, r)
+	var size int16
+	unpacker.FetchInt16(&size)
+	sq.Columns = make([]BindColumn, 0, size)
+	for i := 0; i < int(size); i++ {
+		var col BindColumn
+		var precsionLow, precsionHigh uint16
+		unpacker.FetchInt16(&col.Type).
+			FetchInt16(&col.Indicator).
+			FetchUint16(&precsionLow).FetchUint16(&precsionHigh).
+			FetchUint16(&col.Data)
+		col.Precision = uint32(precsionHigh<<16) + uint32(precsionLow)
+		sq.Columns = append(sq.Columns, col)
+	}
+	return unpacker.Error()
+}
+
+type BindColumn struct {
+	Type      int16
+	Indicator int16
+	Precision uint32
+	Data      uint16
+}
+
 //SqliOpen SQ_OPEN 6
 type SqliOpen struct {
 }
@@ -1031,6 +1085,14 @@ func UnpackSqliCommand(reader io.ReadSeeker) (SqliCommand, error) {
 		return command, nil
 	case 4:
 		command := &SqliID{}
+		err = command.Unpack(reader)
+		if err != nil {
+			reader.Seek(pos, io.SeekStart)
+			return nil, err
+		}
+		return command, nil
+	case 5:
+		command := &SqliBind{}
 		err = command.Unpack(reader)
 		if err != nil {
 			reader.Seek(pos, io.SeekStart)
