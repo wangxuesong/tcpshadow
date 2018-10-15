@@ -28,11 +28,25 @@ func TestSqTuple_Pack_Unpack(t *testing.T) {
 	assert.IsType(t, &SqliTuple{}, cmd)
 	tupleCmd, ok := cmd.(*SqliTuple)
 	assert.True(t, ok)
-	tupleCmd.Values = append(tupleCmd.Values, &SmallIntTupleValue{})
-	tupleCmd.Values = append(tupleCmd.Values, &LVarcharTupleValue{})
-	reader := bytes.NewReader(tupleCmd.tupleBytes)
-	tupleCmd.unpackValues(reader)
-	//assert.Equal(t, &tuple, cmd)
+	fields := make([]SqliField, 0, 2)
+	field1 := SqliField{
+		FieldIndex:     0,
+		ColumnStartPos: 0,
+		ColumnType:     1,
+		Length:         4,
+		Name:           "a",
+	}
+	fields = append(fields, field1)
+	field2 := SqliField{
+		FieldIndex:     2,
+		ColumnStartPos: 4,
+		ColumnType:     43,
+		Length:         50,
+		Name:           "b",
+	}
+	fields = append(fields, field2)
+	tupleCmd.SetMetaData(fields)
+	tupleCmd.UnpackValues()
 	assert.Equal(t, tuple.Warnings, tupleCmd.Warnings)
 	assert.Equal(t, tuple.Values, tupleCmd.Values)
 	pos, err := buffer.Seek(0, io.SeekCurrent)

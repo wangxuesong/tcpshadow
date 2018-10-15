@@ -553,6 +553,7 @@ type SqliTuple struct {
 	size       uint32
 	tupleBytes []byte
 	Values     TupleValues
+	fields     []SqliField
 }
 
 func (sq *SqliTuple) Command() uint16 {
@@ -597,7 +598,23 @@ func (sq *SqliTuple) Unpack(r io.Reader) error {
 	return unpacker.Error()
 }
 
-func (sq *SqliTuple) unpackValues(r io.Reader) error {
+var ERRSQLITUPLENOMETADATA = errors.New("can't find metadata")
+
+func (sq *SqliTuple) UnpackValues() error {
+	if sq.fields == nil {
+		return ERRSQLITUPLENOMETADATA
+	}
+	sq.Values = nil
+	sq.Values = make([]TupleValue, 0, len(sq.fields))
+	for _, f := range sq.fields {
+		switch f.ColumnType {
+		case 1:
+			sq.Values = append(sq.Values, &SmallIntTupleValue{})
+		case 43:
+			sq.Values = append(sq.Values, &LVarcharTupleValue{})
+		}
+	}
+	r := bytes.NewReader(sq.tupleBytes)
 	for _, v := range sq.Values {
 		err := v.UnpackTupleValue(r)
 		if err != nil {
@@ -606,6 +623,9 @@ func (sq *SqliTuple) unpackValues(r io.Reader) error {
 	}
 
 	return nil
+}
+func (sq *SqliTuple) SetMetaData(fields []SqliField) {
+	sq.fields = fields
 }
 
 func NewDescribeTransmission() (SqliTransmission, error) {
