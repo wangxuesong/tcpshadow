@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"github.com/zhuangsirui/binpacker"
 	"io"
+	"log"
 	"strings"
 )
 
@@ -15,8 +16,6 @@ type TupleValue interface {
 	UnpackTupleValue(reader io.Reader) error
 	Size() int64
 }
-
-type TupleValues []TupleValue
 
 func (tv *TupleValues) PackTupleValue(writer io.Writer) error {
 	for _, v := range *tv {
@@ -608,10 +607,18 @@ func (sq *SqliTuple) UnpackValues() error {
 	sq.Values = make([]TupleValue, 0, len(sq.fields))
 	for _, f := range sq.fields {
 		switch f.ColumnType {
+		case 0:
+			sq.Values = append(sq.Values, &CharTupleValue{Length: f.Length})
 		case 1:
 			sq.Values = append(sq.Values, &SmallIntTupleValue{})
+		case 2:
+			sq.Values = append(sq.Values, &IntTupleValue{})
+		case 13:
+			sq.Values = append(sq.Values, &VarcharTupleValue{})
 		case 43:
 			sq.Values = append(sq.Values, &LVarcharTupleValue{})
+		default:
+			log.Printf("unknown data type: %d\n", f.ColumnType)
 		}
 	}
 	r := bytes.NewReader(sq.tupleBytes)
@@ -1029,57 +1036,6 @@ func (sq *SqliProtocols) Unpack(r io.Reader) error {
 		unpacker.FetchByte(&pad) // Pad
 	}
 	return unpacker.Error()
-}
-
-type SmallIntTupleValue struct {
-	Value int16
-}
-
-func (v *SmallIntTupleValue) PackTupleValue(writer io.Writer) error {
-	packer := binpacker.NewPacker(binary.BigEndian, writer)
-	//packer.PushUint32(v.length)
-	packer.PushInt16(v.Value)
-	return packer.Error()
-}
-
-func (v *SmallIntTupleValue) UnpackTupleValue(reader io.Reader) error {
-	unpacker := binpacker.NewUnpacker(binary.BigEndian, reader)
-	unpacker.FetchInt16(&v.Value)
-	return unpacker.Error()
-}
-
-func (v *SmallIntTupleValue) Size() int64 {
-	return 2
-}
-
-type LVarcharTupleValue struct {
-	Value string
-}
-
-func (v *LVarcharTupleValue) PackTupleValue(writer io.Writer) error {
-	packer := binpacker.NewPacker(binary.BigEndian, writer)
-	packer.PushByte(0) // 长度最高字节,暂时只支持4字节，协议支持5字节
-	packer.PushUint32(uint32(len(v.Value)))
-	packer.PushBytes([]byte(v.Value))
-	return packer.Error()
-}
-
-func (v *LVarcharTupleValue) UnpackTupleValue(reader io.Reader) error {
-	unpacker := binpacker.NewUnpacker(binary.BigEndian, reader)
-	_, err := unpacker.ShiftByte()
-	if err != nil {
-		return err
-	}
-	size, err := unpacker.ShiftUint32()
-	if err != nil {
-		return err
-	}
-	unpacker.FetchString(uint64(size), &v.Value)
-	return unpacker.Error()
-}
-
-func (v *LVarcharTupleValue) Size() int64 {
-	return int64(len(v.Value)) + 5
 }
 
 func UnpackSqliCommand(reader io.ReadSeeker) (SqliCommand, error) {
