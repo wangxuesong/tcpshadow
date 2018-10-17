@@ -606,7 +606,7 @@ func (sq *SqliTuple) UnpackValues() error {
 	sq.Values = nil
 	sq.Values = make([]TupleValue, 0, len(sq.fields))
 	for _, f := range sq.fields {
-		switch f.ColumnType {
+		switch f.ColumnType & 0xff {
 		case 0:
 			sq.Values = append(sq.Values, &CharTupleValue{Length: f.Length})
 		case 1:
@@ -619,6 +619,7 @@ func (sq *SqliTuple) UnpackValues() error {
 			sq.Values = append(sq.Values, &LVarcharTupleValue{})
 		default:
 			log.Printf("unknown data type: %d\n", f.ColumnType)
+			return errors.New("unknown data type")
 		}
 	}
 	r := bytes.NewReader(sq.tupleBytes)
