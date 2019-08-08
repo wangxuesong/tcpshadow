@@ -75,7 +75,7 @@ var showCmd = &cobra.Command{
 			if raw {
 				scs.Printf("%v\n", savePackage)
 			} else {
-				if print && savePackage.Number >= 2 {
+				if printPackage && savePackage.Number >= 2 {
 					reader := bytes.NewReader(savePackage.Buffer)
 					cmds, err := model.UnpackSqliTransmission(reader)
 					if cmds[0].Command() == 8 {
@@ -128,5 +128,5 @@ func init() {
 	showCmd.MarkFlagRequired("input")
 	showCmd.Flags().BoolVarP(&color, "color", "c", false, "print with color")
 	showCmd.Flags().BoolVarP(&raw, "raw", "r", false, "show raw")
-	showCmd.Flags().BoolVarP(&print, "parse", "p", false, "parse package")
+	showCmd.Flags().BoolVarP(&printPackage, "parse", "p", false, "parse package")
 }

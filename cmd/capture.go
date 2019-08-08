@@ -19,6 +19,8 @@ import (
 	"encoding/binary"
 	"errors"
 	"github.com/davecgh/go-spew/spew"
+	"github.com/spf13/cobra"
+	"github.com/wangxuesong/tcpshadow/model"
 	"io"
 	"log"
 	"net"
@@ -27,10 +29,6 @@ import (
 	"sync"
 	"syscall"
 	"time"
-
-	"github.com/wangxuesong/tcpshadow/model"
-
-	"github.com/spf13/cobra"
 )
 
 // captureCmd represents the capture command
@@ -50,7 +48,8 @@ var (
 	serverAddress string
 	listenAddress string
 	outputFile    string
-	print         bool
+	printPackage  bool
+	protocolType  string
 )
 
 func init() {
@@ -61,12 +60,13 @@ func init() {
 	// Cobra supports Persistent Flags which will work for this command
 	// and all subcommands, e.g.:
 	captureCmd.Flags().StringVarP(&serverAddress, "server", "s", "", "server address")
-	captureCmd.MarkFlagRequired("server")
+	_ = captureCmd.MarkFlagRequired("server")
 	captureCmd.Flags().StringVarP(&listenAddress, "listen", "l", "", "listen address")
-	captureCmd.MarkFlagRequired("listen")
+	_ = captureCmd.MarkFlagRequired("listen")
 	captureCmd.Flags().StringVarP(&outputFile, "output", "o", "", "output file")
-	captureCmd.MarkFlagRequired("output")
-	captureCmd.Flags().BoolVarP(&print, "print", "p", false, "print package")
+	_ = captureCmd.MarkFlagRequired("output")
+	captureCmd.Flags().BoolVarP(&printPackage, "printPackage", "p", false, "printPackage package")
+	captureCmd.Flags().StringVarP(&protocolType, "type", "t", "sqli", "protocol type")
 
 	// Cobra supports local flags which will only run when this command
 	// is called directly, e.g.:
@@ -74,14 +74,14 @@ func init() {
 }
 
 type Service struct {
-	ch        chan bool
+	done      chan bool
 	waitGroup *sync.WaitGroup
 }
 
 // Make a new Service.
 func NewService() *Service {
 	s := &Service{
-		ch:        make(chan bool),
+		done:      make(chan bool),
 		waitGroup: &sync.WaitGroup{},
 	}
 	//s.waitGroup.Add(1)
@@ -91,7 +91,7 @@ func NewService() *Service {
 // Stop the service by closing the service's channel.  Block until the service
 // is really stopped.
 func (s *Service) Stop() {
-	close(s.ch)
+	close(s.done)
 	s.waitGroup.Wait()
 }
 
@@ -101,13 +101,13 @@ func (s *Service) Serve(listener *net.TCPListener) {
 	defer s.waitGroup.Done()
 	for {
 		select {
-		case <-s.ch:
+		case <-s.done:
 			log.Println("stopping listening on", listener.Addr())
-			listener.Close()
+			_ = listener.Close()
 			return
 		default:
 		}
-		listener.SetDeadline(time.Now().Add(1e9))
+		_ = listener.SetDeadline(time.Now().Add(1e9))
 		client, err := listener.AcceptTCP()
 		if nil != err {
 			if opErr, ok := err.(*net.OpError); ok && opErr.Timeout() {
@@ -147,11 +147,11 @@ func (s *Service) Serve(listener *net.TCPListener) {
 					header.Forward = uint8(d.Forward)
 					header.Length = int64(len(d.Buffer))
 					buf := new(bytes.Buffer)
-					binary.Write(buf, binary.LittleEndian, header)
-					file.Write(buf.Bytes())
-					file.Write(d.Buffer)
-					file.Sync()
-					if print {
+					_ = binary.Write(buf, binary.LittleEndian, header)
+					_, _ = file.Write(buf.Bytes())
+					_, _ = file.Write(d.Buffer)
+					_ = file.Sync()
+					if printPackage {
 						scs := spew.NewDefaultConfig()
 						scs.Indent = "    "
 						data := model.SavePackage{
@@ -167,26 +167,31 @@ func (s *Service) Serve(listener *net.TCPListener) {
 							colorStr = YELLOW
 						}
 						warningStr := RED
-						scs.Print(colorStr)
-						if data.Number < 2 {
-							scs.Dump(data)
-						} else {
-							reader := bytes.NewReader(data.Buffer)
-							cmds, err := model.UnpackSqliTransmission(reader)
-							if err != nil {
-								scs.Print(warningStr)
-								scs.Println(err)
+						_, _ = scs.Print(colorStr)
+						switch protocolType {
+						case "pg":
+
+						case "sqli":
+							if data.Number < 2 {
 								scs.Dump(data)
-								scs.Println(clearStr)
-								index++
-								continue
+							} else {
+								reader := bytes.NewReader(data.Buffer)
+								cmds, err := model.UnpackSqliTransmission(reader)
+								if err != nil {
+									_, _ = scs.Print(warningStr)
+									_, _ = scs.Println(err)
+									scs.Dump(data)
+									_, _ = scs.Println(clearStr)
+									index++
+									continue
+								}
+								scs.Dump(cmds)
 							}
-							scs.Dump(cmds)
 						}
-						scs.Println(clearStr)
+						_, _ = scs.Println(clearStr)
 					}
-				case <-s.ch:
-					file.Close()
+				case <-s.done:
+					_ = file.Close()
 					return
 				}
 				index++
@@ -240,12 +245,12 @@ func (s *Service) proxyData(src net.Conn, dest net.Conn, forward model.DataForwa
 	s.waitGroup.Add(1)
 	for {
 		select {
-		case <-s.ch:
+		case <-s.done:
 			log.Println("disconnecting", src.RemoteAddr())
 			return
 		default:
 		}
-		src.SetDeadline(time.Now().Add(1e9))
+		_ = src.SetDeadline(time.Now().Add(1e9))
 		buf := make([]byte, 16384)
 		cnt, err := src.Read(buf)
 		if nil != err {
@@ -254,7 +259,7 @@ func (s *Service) proxyData(src net.Conn, dest net.Conn, forward model.DataForwa
 			}
 			if err == io.EOF {
 				log.Println("disconnecting", src.RemoteAddr())
-				s.ch <- true
+				//s.done <- true
 				return
 			}
 			log.Println(err)
