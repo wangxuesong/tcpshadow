@@ -53,7 +53,7 @@ func (t *SqliTransmission) Append(cmd SqliCommand) {
 	*t = append(*t, cmd)
 }
 
-//SqliCmd SQ_COMMAND 1
+// SqliCmd SQ_COMMAND 1
 type SqliCmd struct {
 	Sql string
 }
@@ -88,7 +88,7 @@ func (sq *SqliCmd) Unpack(r io.Reader) error {
 	return unpacker.Error()
 }
 
-//SqliPrepare SQ_PREPARE 2
+// SqliPrepare SQ_PREPARE 2
 type SqliPrepare struct {
 	QMarks uint16
 	Sql    string
@@ -125,7 +125,7 @@ func (sq *SqliPrepare) Unpack(r io.Reader) error {
 	return unpacker.Error()
 }
 
-//SqliCurName SQ_CURNAME 3
+// SqliCurName SQ_CURNAME 3
 type SqliCurName struct {
 	CurName string
 }
@@ -159,7 +159,7 @@ func (sq *SqliCurName) Unpack(r io.Reader) error {
 	return unpacker.Error()
 }
 
-//SqliID SQ_ID 4
+// SqliID SQ_ID 4
 type SqliID struct {
 	ID int16
 }
@@ -183,7 +183,7 @@ func (sq *SqliID) Unpack(r io.Reader) error {
 	return unpacker.Error()
 }
 
-//SqliBind SQ_BIND 5
+// SqliBind SQ_BIND 5
 type SqliBind struct {
 	Columns []BindColumn
 }
@@ -237,7 +237,7 @@ type BindColumn struct {
 	Data      uint16
 }
 
-//SqliOpen SQ_OPEN 6
+// SqliOpen SQ_OPEN 6
 type SqliOpen struct {
 }
 
@@ -253,7 +253,7 @@ func (*SqliOpen) Unpack(r io.Reader) error {
 	panic("implement me")
 }
 
-//SqliExecute SQ_EXECUTE 7
+// SqliExecute SQ_EXECUTE 7
 type SqliExecute struct {
 }
 
@@ -269,12 +269,12 @@ func (*SqliExecute) Unpack(r io.Reader) error {
 	panic("implement me")
 }
 
-//SqliDescribe SQ_DESCRIBE 8
+// SqliDescribe SQ_DESCRIBE 8
 type SqliDescribe struct {
 	StatementType uint16
 	StatementID   uint16
 	EstimatedCost uint32
-	TupleSize     uint16
+	TupleSize     uint32
 	CountOfFields uint16
 	StringTable   uint32
 	Fields        []SqliField
@@ -303,7 +303,7 @@ func (sq *SqliDescribe) Pack() ([]byte, error) {
 		PushUint16(sq.StatementType).
 		PushUint16(sq.StatementID).
 		PushUint32(sq.EstimatedCost).
-		PushUint16(sq.TupleSize).
+		PushUint32(sq.TupleSize).
 		PushUint16(sq.CountOfFields).
 		PushUint32(sq.StringTable)
 
@@ -318,7 +318,7 @@ func (sq *SqliDescribe) Unpack(r io.Reader) error {
 	unpacker.FetchUint16(&sq.StatementType).
 		FetchUint16(&sq.StatementID).
 		FetchUint32(&sq.EstimatedCost).
-		FetchUint16(&sq.TupleSize).
+		FetchUint32(&sq.TupleSize).
 		FetchUint16(&sq.CountOfFields).
 		FetchUint32(&sq.StringTable)
 	err := unpacker.Error()
@@ -428,7 +428,7 @@ type SqliField struct {
 	Name                    string
 }
 
-//SqliNFetch SQ_NFETCH 9
+// SqliNFetch SQ_NFETCH 9
 type SqliNFetch struct {
 	TupleBufferSize uint32
 	FetchArraySize  uint16
@@ -455,7 +455,7 @@ func (sq *SqliNFetch) Unpack(r io.Reader) error {
 	return unpacker.Error()
 }
 
-//SqliClose SQ_CLOSE 10
+// SqliClose SQ_CLOSE 10
 type SqliClose struct {
 }
 
@@ -471,7 +471,7 @@ func (*SqliClose) Unpack(r io.Reader) error {
 	panic("implement me")
 }
 
-//SqliRelease SQ_RELEASE 11
+// SqliRelease SQ_RELEASE 11
 type SqliRelease struct {
 }
 
@@ -487,7 +487,7 @@ func (*SqliRelease) Unpack(r io.Reader) error {
 	panic("implement me")
 }
 
-//SqliEot SQ_EOT 12
+// SqliEot SQ_EOT 12
 type SqliEot struct {
 }
 
@@ -503,7 +503,7 @@ func (*SqliEot) Unpack(r io.Reader) error {
 	panic("implement me")
 }
 
-//SqliErr SQ_ERR 13
+// SqliErr SQ_ERR 13
 type SqliErr struct {
 	SQLCode   int16
 	RSAMError int16
@@ -546,7 +546,7 @@ func (sq *SqliErr) Unpack(r io.Reader) error {
 	return unpacker.Error()
 }
 
-//SqliTuple SQ_TUPLE 14
+// SqliTuple SQ_TUPLE 14
 type SqliTuple struct {
 	Warnings   uint16
 	size       uint32
@@ -667,7 +667,7 @@ func NewDescribeTransmission() (SqliTransmission, error) {
 	return trans, nil
 }
 
-//SqliDone SQ_DONE 15
+// SqliDone SQ_DONE 15
 type SqliDone struct {
 	Warning  int16
 	Rows     uint32
@@ -699,7 +699,7 @@ func (sq *SqliDone) Unpack(r io.Reader) error {
 	return unpacker.Error()
 }
 
-//SqliNDescribe SQ_NDESCRIBE 22
+// SqliNDescribe SQ_NDESCRIBE 22
 type SqliNDescribe struct {
 }
 
@@ -715,7 +715,7 @@ func (*SqliNDescribe) Unpack(r io.Reader) error {
 	return nil
 }
 
-//SqliDBOpen SQ_DBOPEN 36
+// SqliDBOpen SQ_DBOPEN 36
 type SqliDBOpen struct {
 	DBName string
 	Foo    int16 // TODO: Naming
@@ -749,7 +749,7 @@ func (sq *SqliDBOpen) Unpack(r io.Reader) error {
 	return unpacker.Error()
 }
 
-//SqliWantDone SQ_WANTDONE 49
+// SqliWantDone SQ_WANTDONE 49
 type SqliWantDone struct {
 }
 
@@ -765,7 +765,7 @@ func (*SqliWantDone) Unpack(r io.Reader) error {
 	return nil
 }
 
-//SqliCost SQ_COST 55
+// SqliCost SQ_COST 55
 type SqliCost struct {
 	EstimatedRows uint32
 	EstimatedIO   uint32
@@ -790,7 +790,7 @@ func (sq *SqliCost) Unpack(r io.Reader) error {
 	return unpacker.Error()
 }
 
-//SqliExit SQ_EXIT 56
+// SqliExit SQ_EXIT 56
 type SqliExit struct {
 }
 
@@ -806,7 +806,7 @@ func (*SqliExit) Unpack(r io.Reader) error {
 	return nil
 }
 
-//SqliInfo SQ_INFO 81
+// SqliInfo SQ_INFO 81
 type SqliInfo struct {
 	MessageType int16
 	Length      int16
@@ -846,7 +846,7 @@ func (sq *SqliInfo) Unpack(r io.Reader) error {
 	return unpacker.Error()
 }
 
-//SqliInsertDone SQ_INSERTDONE 94
+// SqliInsertDone SQ_INSERTDONE 94
 type SqliInsertDone struct {
 	Serial8   int64
 	BigSerial uint64
@@ -941,7 +941,7 @@ func (env *InfoEnv) Unpack(r io.Reader) error {
 	return nil
 }
 
-//SqliRetType SQ_RETTYPE 100
+// SqliRetType SQ_RETTYPE 100
 type SqliRetType struct {
 	Direction uint16
 	Columns   []ColumnType
@@ -982,7 +982,7 @@ type ColumnType struct {
 	Length uint32
 }
 
-//SqliAutoFree SQ_AUTOFREE 108
+// SqliAutoFree SQ_AUTOFREE 108
 type SqliAutoFree struct {
 }
 
@@ -998,7 +998,7 @@ func (*SqliAutoFree) Unpack(r io.Reader) error {
 	panic("implement me")
 }
 
-//SqliProtocols SQ_PROTOCOLS 126
+// SqliProtocols SQ_PROTOCOLS 126
 type SqliProtocols struct {
 	Protocol []byte
 }

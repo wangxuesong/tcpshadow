@@ -17,8 +17,11 @@ package cmd
 import (
 	"bytes"
 	"encoding/binary"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"github.com/davecgh/go-spew/spew"
+	"github.com/jackc/pgproto3"
 	"github.com/spf13/cobra"
 	"github.com/wangxuesong/tcpshadow/model"
 	"io"
@@ -95,8 +98,8 @@ func (s *Service) Stop() {
 	s.waitGroup.Wait()
 }
 
-// Accept connections and spawn a goroutine to serve each one.  Stop listening
-// if anything is received on the service's channel.
+// Serve Accept connections and spawn a goroutine to serve each one.
+// Stop listening if anything is received on the service's channel.
 func (s *Service) Serve(listener *net.TCPListener) {
 	defer s.waitGroup.Done()
 	for {
@@ -154,6 +157,10 @@ func (s *Service) Serve(listener *net.TCPListener) {
 					if printPackage {
 						scs := spew.NewDefaultConfig()
 						scs.Indent = "    "
+						msgDump := spew.NewDefaultConfig()
+						msgDump.DisableMethods = true
+						msgDump.DisablePointerAddresses = true
+						msgDump.DisablePointerMethods = true
 						data := model.SavePackage{
 							Number:  int(header.Index),
 							Forward: model.DataForward(header.Forward),
@@ -170,7 +177,58 @@ func (s *Service) Serve(listener *net.TCPListener) {
 						_, _ = scs.Print(colorStr)
 						switch protocolType {
 						case "pg":
-
+							scs.Dump(data)
+							if data.Number < 1 {
+								if data.Number == 0 {
+									backend, err := pgproto3.NewBackend(
+										pgproto3.NewChunkReader(bytes.NewReader(data.Buffer)),
+										nil)
+									msg, err := backend.ReceiveStartupMessage()
+									//err := msg.Decode(data.Buffer)
+									//msg, err := pgproto3.ParseStartupMessage(bytes.NewReader(data.Buffer))
+									if err != nil {
+										scs.Dump(data)
+									} else {
+										buf, err := json.MarshalIndent(msg, "", "  ")
+										if err != nil {
+											msgDump.Dump(msg)
+										} else {
+											fmt.Println("C->S", string(buf))
+										}
+									}
+									break
+								}
+							} else {
+								if data.Forward == model.ServerToClient {
+									msg, err := model.ParseServerMessage(bytes.NewReader(data.Buffer))
+									if err != nil {
+										scs.Dump(data)
+									} else {
+										for _, i := range msg {
+											buf, err := json.MarshalIndent(i, "", "  ")
+											if err != nil {
+												msgDump.Dump(i)
+											} else {
+												fmt.Println("S->C", string(buf))
+											}
+										}
+									}
+								} else {
+									msg, err := model.ParseClientMessage(bytes.NewReader(data.Buffer))
+									if err != nil {
+										scs.Dump(data)
+									} else {
+										for _, i := range msg {
+											buf, err := json.MarshalIndent(i, "", "  ")
+											if err != nil {
+												msgDump.Dump(i)
+											} else {
+												fmt.Println("C->S", string(buf))
+											}
+										}
+									}
+								}
+							}
 						case "sqli":
 							if data.Number < 2 {
 								scs.Dump(data)
