@@ -22,9 +22,8 @@ func (f DataForward) String() string {
 }
 
 type SavePackage struct {
-	Number  int
-	Forward DataForward
-	Length  int
-	Buffer  []byte
+	Number  int         `json:"number"`
+	Forward DataForward `json:"forward"`
+	Length  int         `json:"length"`
+	Buffer  []byte      `json:"buffer"`
 }
-

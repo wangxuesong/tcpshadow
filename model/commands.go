@@ -3,6 +3,7 @@ package model
 import (
 	"bytes"
 	"encoding/binary"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/zhuangsirui/binpacker"
@@ -359,7 +360,7 @@ func (sq *SqliDescribe) unpackStringTable(r io.Reader) error {
 		var b byte
 		unpacker.FetchByte(&b)
 	}
-	names := strings.Split(temp, string(0))
+	names := strings.Split(temp, string("\000"))
 	if len(names)-1 != int(sq.CountOfFields) {
 		return errors.New("unpack string table error")
 	}
@@ -564,16 +565,25 @@ func (sq *SqliTuple) Pack() ([]byte, error) {
 	packer := binpacker.NewPacker(binary.BigEndian, buffer)
 	packer.PushUint16(sq.Command())
 	packer.PushUint16(sq.Warnings)
-	var sum int64 = 0
-	for _, v := range sq.Values {
-		sum += v.Size()
-	}
-	packer.PushUint32(uint32(sum))
-	valuesBuf := new(bytes.Buffer)
-	sq.Values.PackTupleValue(valuesBuf)
-	valuesBuf.WriteTo(buffer)
-	if sum%2 == 1 {
-		packer.PushByte(0) // Pad
+
+	if sq.tupleBytes == nil || len(sq.tupleBytes) == 0 {
+		var sum int64 = 0
+		for _, v := range sq.Values {
+			sum += v.Size()
+		}
+		packer.PushUint32(uint32(sum))
+		valuesBuf := new(bytes.Buffer)
+		sq.Values.PackTupleValue(valuesBuf)
+		valuesBuf.WriteTo(buffer)
+		if sum%2 == 1 {
+			packer.PushByte(0) // Pad
+		}
+	} else {
+		packer.PushUint32(sq.size)
+		packer.PushBytes(sq.tupleBytes)
+		if sq.size%2 == 1 {
+			packer.PushByte(0)
+		}
 	}
 	return buffer.Bytes(), nil
 }
@@ -595,6 +605,41 @@ func (sq *SqliTuple) Unpack(r io.Reader) error {
 		unpacker.FetchByte(&pad) // Pad
 	}
 	return unpacker.Error()
+}
+
+func (sq *SqliTuple) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Warnings   uint16
+		Size       uint32
+		TupleBytes []byte
+		Values     TupleValues `json:"values,omitempty"`
+		Fields     []SqliField `json:"fields,omitempty"`
+	}{
+		Warnings:   sq.Warnings,
+		Size:       sq.size,
+		TupleBytes: sq.tupleBytes,
+		Values:     sq.Values,
+		Fields:     sq.fields,
+	})
+}
+
+func (sq *SqliTuple) UnmarshalJSON(data []byte) (err error) {
+	var tuple struct {
+		Warnings   uint16
+		Size       uint32
+		TupleBytes []byte
+		Values     TupleValues `json:"values,omitempty"`
+		Fields     []SqliField `json:"fields,omitempty"`
+	}
+	err = json.Unmarshal(data, &tuple)
+
+	sq.Warnings = tuple.Warnings
+	sq.size = tuple.Size
+	sq.tupleBytes = tuple.TupleBytes
+	sq.Values = tuple.Values
+	sq.fields = tuple.Fields
+
+	return
 }
 
 var ERRSQLITUPLENOMETADATA = errors.New("can't find metadata")
@@ -730,8 +775,12 @@ func (sq *SqliDBOpen) Pack() ([]byte, error) {
 	packer := binpacker.NewPacker(binary.BigEndian, buffer)
 	packer.PushUint16(sq.Command())
 	packer.PushInt16(int16(len(sq.DBName))).
-		PushString(sq.DBName).
-		PushInt16(sq.Foo)
+		PushString(sq.DBName)
+	if len(sq.DBName)%2 == 1 {
+		packer.PushByte(0)
+	}
+
+	packer.PushInt16(sq.Foo)
 	return buffer.Bytes(), packer.Error()
 }
 

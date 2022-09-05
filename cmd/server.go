@@ -19,7 +19,6 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net"
 	"os"
 
@@ -103,7 +102,7 @@ func ReadPackages() []model.SavePackage {
 		panic(err)
 	}
 	defer file.Close()
-	buf, err := ioutil.ReadAll(file)
+	buf, err := io.ReadAll(file)
 	if err != nil {
 		panic(err)
 	}
