@@ -76,14 +76,14 @@ type VarcharTupleValue struct {
 
 func (v *VarcharTupleValue) PackTupleValue(writer io.Writer) error {
 	packer := binpacker.NewPacker(binary.BigEndian, writer)
-	packer.PushUint8(uint8(len(v.Value)))
+	packer.PushUint16(uint16(len(v.Value)))
 	packer.PushBytes([]byte(v.Value))
 	return packer.Error()
 }
 
 func (v *VarcharTupleValue) UnpackTupleValue(reader io.Reader) error {
 	unpacker := binpacker.NewUnpacker(binary.BigEndian, reader)
-	size, err := unpacker.ShiftUint8()
+	size, err := unpacker.ShiftUint16()
 	if err != nil {
 		return err
 	}
