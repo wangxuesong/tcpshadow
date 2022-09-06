@@ -28,8 +28,8 @@ import (
 // toJsonCmd represents the tojson command
 var toJsonCmd = &cobra.Command{
 	Use:   "tojson",
-	Short: "convter capture file to json",
-	Long:  `convter capture file to json`,
+	Short: "convert capture file to json",
+	Long:  `convert capture file to json`,
 	Run: func(cmd *cobra.Command, args []string) {
 		packages := ReadPackages()
 		jsonStr, err := marshalSqliSavePackages(packages)
