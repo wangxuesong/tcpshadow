@@ -62,46 +62,6 @@ var showCmd = &cobra.Command{
 		packages := ReadPackages()
 		scs := spew.NewDefaultConfig()
 		scs.Indent = "    "
-		var desc *model.SqliDescribe
-		printPack := func(colorStr string, savePackage model.SavePackage) {
-			clearStr := CLEAR
-			warningStr := RED
-			if !color {
-				colorStr = ""
-				clearStr = ""
-				warningStr = ""
-			}
-			scs.Print(colorStr)
-			if raw {
-				scs.Printf("%v\n", savePackage)
-			} else {
-				if printPackage && savePackage.Number >= 2 {
-					reader := bytes.NewReader(savePackage.Buffer)
-					cmds, err := model.UnpackSqliTransmission(reader)
-					if cmds[0].Command() == 8 {
-						desc = cmds[0].(*model.SqliDescribe)
-					}
-					if cmds[0].Command() == new(model.SqliTuple).Command() {
-						if desc != nil {
-							tuple := cmds[0].(*model.SqliTuple)
-							tuple.SetMetaData(desc.Fields)
-							tuple.UnpackValues()
-						}
-					}
-					if err != nil {
-						scs.Print(warningStr)
-						scs.Println(err)
-						scs.Dump(savePackage)
-					} else {
-						scs.Dump(cmds)
-					}
-				} else {
-					scs.Dump(savePackage)
-				}
-			}
-			scs.Println(clearStr)
-		}
-
 		for _, pack := range packages {
 			switch pack.Forward {
 			case model.ClientToServer:
@@ -111,6 +71,48 @@ var showCmd = &cobra.Command{
 			}
 		}
 	},
+}
+
+func printPack(colorStr string, savePackage model.SavePackage) {
+	scs := spew.NewDefaultConfig()
+	scs.Indent = "    "
+	clearStr := CLEAR
+	warningStr := RED
+	if !color {
+		colorStr = ""
+		clearStr = ""
+		warningStr = ""
+	}
+	scs.Print(colorStr)
+	if raw {
+		scs.Printf("%v\n", savePackage)
+	} else {
+		var desc *model.SqliDescribe
+		if printPackage && savePackage.Number >= 2 {
+			reader := bytes.NewReader(savePackage.Buffer)
+			cmds, err := model.UnpackSqliTransmission(reader)
+			if cmds[0].Command() == 8 {
+				desc = cmds[0].(*model.SqliDescribe)
+			}
+			if cmds[0].Command() == new(model.SqliTuple).Command() {
+				if desc != nil {
+					tuple := cmds[0].(*model.SqliTuple)
+					tuple.SetMetaData(desc.Fields)
+					tuple.UnpackValues()
+				}
+			}
+			if err != nil {
+				scs.Print(warningStr)
+				scs.Println(err)
+				scs.Dump(savePackage)
+			} else {
+				scs.Dump(cmds)
+			}
+		} else {
+			scs.Dump(savePackage)
+		}
+	}
+	scs.Println(clearStr)
 }
 
 func init() {
