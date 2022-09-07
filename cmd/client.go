@@ -17,8 +17,11 @@ package cmd
 import (
 	"github.com/spf13/cobra"
 	"github.com/wangxuesong/tcpshadow/model"
+	"io"
 	"log"
 	"net"
+	"sync"
+	"time"
 )
 
 // serverCmd represents the server command
@@ -33,6 +36,43 @@ func runClientCommand(cmd *cobra.Command, args []string) {
 	//fmt.Println("server called")
 	datas := ReadPackages()
 
+	number := 0
+	waitGroup := &sync.WaitGroup{}
+	done := make(chan bool)
+	defer close(done)
+	proxy := func(src net.Conn, forward model.DataForward, monitor chan model.Data) {
+		defer src.Close()
+		defer waitGroup.Done()
+		//buf := make([]byte, 16384)
+		waitGroup.Add(1)
+		for {
+			select {
+			case <-done:
+				log.Println("disconnecting", src.RemoteAddr())
+				return
+			default:
+			}
+			_ = src.SetDeadline(time.Now().Add(1e9))
+			buf := make([]byte, 16384)
+			cnt, err := src.Read(buf)
+			if nil != err {
+				if opErr, ok := err.(*net.OpError); ok && opErr.Timeout() {
+					continue
+				}
+				if err == io.EOF {
+					log.Println("disconnecting", src.RemoteAddr())
+					//s.done <- true
+					return
+				}
+				log.Println(err)
+				return
+			}
+			data := model.Data{Forward: forward, Buffer: buf[:cnt]}
+			monitor <- data
+		}
+	}
+
+	color = true
 	log.Println("Start...")
 	log.Println("Connect to server")
 	server, err := net.Dial("tcp", serverAddress)
@@ -40,20 +80,62 @@ func runClientCommand(cmd *cobra.Command, args []string) {
 		panic(err)
 	}
 
+	clientDataChan := make(chan model.SavePackage)
+	clientNextChan := make(chan struct{})
+
+	serverDataChan := make(chan model.Data)
+
+	go func() {
+		for {
+			select {
+			case d := <-clientDataChan:
+				_, err := server.Write(d.Buffer)
+				if err != nil {
+					panic(err)
+				}
+				printPack(GREEN, d)
+			case d := <-serverDataChan:
+				data := model.SavePackage{
+					Number:  number,
+					Forward: d.Forward,
+					Length:  len(d.Buffer),
+					Buffer:  d.Buffer,
+				}
+				number++
+				printPack(YELLOW, data)
+				clientNextChan <- struct{}{}
+			}
+		}
+	}()
+
+	go proxy(server, model.ServerToClient, serverDataChan)
+
 	for _, d := range datas {
 		switch d.Forward {
 		case model.ClientToServer:
-			_, err := server.Write(d.Buffer)
-			if err != nil {
-				panic(err)
-			}
+			//_, err := server.Write(d.Buffer)
+			//if err != nil {
+			//	panic(err)
+			//}
+			//printPack(GREEN, d)
+			clientDataChan <- d
+			number++
+			<-clientNextChan
 		case model.ServerToClient:
+			continue
 			buf := make([]byte, 16384)
 			_, err := server.Read(buf)
 			if err != nil {
 				panic(err)
 			}
-			printPack(YELLOW, d)
+			data := model.SavePackage{
+				Number:  113,
+				Forward: model.ServerToClient,
+				Length:  len(buf),
+				Buffer:  buf,
+			}
+			printPack(YELLOW, data)
+
 		}
 	}
 }
@@ -74,4 +156,5 @@ func init() {
 	clientCmd.MarkFlagRequired("address")
 	clientCmd.Flags().StringVarP(&inputFile, "input", "i", "", "input file")
 	clientCmd.MarkFlagRequired("input")
+	clientCmd.Flags().BoolVarP(&printPackage, "parse", "p", false, "parse package")
 }

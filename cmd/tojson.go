@@ -61,7 +61,7 @@ type packageForJson struct {
 }
 
 type jsonSqliCommand struct {
-	Type              int `json:"type"`
+	Type              string `json:"type"`
 	model.SqliCommand `json:"sqli"`
 }
 
@@ -92,7 +92,7 @@ func marshalSqliPackage(packages []model.SavePackage) ([]sqliPackage, error) {
 				return nil, err
 			}
 			var cmd jsonSqliCommand
-			cmd.Type = int(sqli.Command())
+			cmd.Type = model.SqliType(sqli.Command()).String()
 			cmd.SqliCommand = sqli
 			output.Command = append(output.Command, cmd)
 		}
@@ -135,7 +135,7 @@ func unmarshalSqliSavePackages(jsonString string) ([]model.SavePackage, error) {
 	type unmarshalSqliPackage struct {
 		Number  int               `json:"number"`
 		Forward model.DataForward `json:"forward"`
-		Type    int               `json:"type"`
+		Type    string            `json:"type"`
 		Command []json.RawMessage `json:"command"`
 	}
 	type packageForUnmarshalJson struct {
@@ -153,7 +153,7 @@ func unmarshalSqliSavePackages(jsonString string) ([]model.SavePackage, error) {
 	}
 
 	type commandType struct {
-		Type int `json:"type"`
+		Type string `json:"type"`
 		Sqli json.RawMessage
 	}
 	for _, p := range anyJson.SqliPackage {
@@ -172,7 +172,13 @@ func unmarshalSqliSavePackages(jsonString string) ([]model.SavePackage, error) {
 				return nil, err
 			}
 
-			switch t.Type {
+			switch model.ParseSqliType(t.Type) {
+			case model.SQ_COMMAND:
+				cmd, err := unmarshalCommand[*model.SqliCmd](t.Sqli)
+				if err != nil {
+					return nil, err
+				}
+				trans.Append(cmd)
 			case 2:
 				cmd, err := unmarshalCommand[*model.SqliPrepare](t.Sqli)
 				if err != nil {
@@ -193,6 +199,12 @@ func unmarshalSqliSavePackages(jsonString string) ([]model.SavePackage, error) {
 				trans.Append(cmd)
 			case 6:
 				cmd, err := unmarshalCommand[*model.SqliOpen](t.Sqli)
+				if err != nil {
+					return nil, err
+				}
+				trans.Append(cmd)
+			case model.SQ_EXECUTE:
+				cmd, err := unmarshalCommand[*model.SqliExecute](t.Sqli)
 				if err != nil {
 					return nil, err
 				}
@@ -271,6 +283,12 @@ func unmarshalSqliSavePackages(jsonString string) ([]model.SavePackage, error) {
 				trans.Append(cmd)
 			case 81:
 				cmd, err := unmarshalCommand[*model.SqliInfo](t.Sqli)
+				if err != nil {
+					return nil, err
+				}
+				trans.Append(cmd)
+			case model.SQ_INSERTDONE:
+				cmd, err := unmarshalCommand[*model.SqliInsertDone](t.Sqli)
 				if err != nil {
 					return nil, err
 				}

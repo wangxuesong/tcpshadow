@@ -12,6 +12,104 @@ import (
 	"strings"
 )
 
+type SqliType uint16
+
+const (
+	SQ_COMMAND    SqliType = 1
+	SQ_PREPARE             = 2
+	SQ_CURNAME             = 3
+	SQ_ID                  = 4
+	SQ_BIND                = 5
+	SQ_OPEN                = 6
+	SQ_EXECUTE             = 7
+	SQ_DESCRIBE            = 8
+	SQ_NFETCH              = 9
+	SQ_CLOSE               = 10
+	SQ_RELEASE             = 11
+	SQ_EOT                 = 12
+	SQ_ERR                 = 13
+	SQ_TUPLE               = 14
+	SQ_DONE                = 15
+	SQ_NDESCRIBE           = 22
+	SQ_DBOPEN              = 36
+	SQ_WANTDONE            = 49
+	SQ_COST                = 55
+	SQ_EXIT                = 56
+	SQ_INFO                = 81
+	SQ_INSERTDONE          = 94
+	SQ_RETTYPE             = 100
+	SQ_AUTOFREE            = 108
+	SQ_PROTOCOLS           = 126
+)
+
+var (
+	SqliTypeStringMap = map[SqliType]string{
+		SQ_COMMAND:    "SQ_COMMAND",
+		SQ_PREPARE:    "SQ_PREPARE",
+		SQ_CURNAME:    "SQ_CURNAME",
+		SQ_ID:         "SQ_ID",
+		SQ_BIND:       "SQ_BIND",
+		SQ_OPEN:       "SQ_OPEN",
+		SQ_EXECUTE:    "SQ_EXECUTE",
+		SQ_DESCRIBE:   "SQ_DESCRIBE",
+		SQ_NFETCH:     "SQ_NFETCH",
+		SQ_CLOSE:      "SQ_CLOSE",
+		SQ_RELEASE:    "SQ_RELEASE",
+		SQ_EOT:        "SQ_EOT",
+		SQ_ERR:        "SQ_ERR",
+		SQ_TUPLE:      "SQ_TUPLE",
+		SQ_DONE:       "SQ_DONE",
+		SQ_NDESCRIBE:  "SQ_NDESCRIBE",
+		SQ_DBOPEN:     "SQ_DBOPEN",
+		SQ_WANTDONE:   "SQ_WANTDONE",
+		SQ_COST:       "SQ_COST",
+		SQ_EXIT:       "SQ_EXIT",
+		SQ_INFO:       "SQ_INFO",
+		SQ_INSERTDONE: "SQ_INSERTDONE",
+		SQ_RETTYPE:    "SQ_RETTYPE",
+		SQ_AUTOFREE:   "SQ_AUTOFREE",
+		SQ_PROTOCOLS:  "SQ_PROTOCOLS",
+	}
+
+	StringSqliTypeMap = map[string]SqliType{
+		"SQ_COMMAND":    SQ_COMMAND,
+		"SQ_PREPARE":    SQ_PREPARE,
+		"SQ_CURNAME":    SQ_CURNAME,
+		"SQ_ID":         SQ_ID,
+		"SQ_BIND":       SQ_BIND,
+		"SQ_OPEN":       SQ_OPEN,
+		"SQ_EXECUTE":    SQ_EXECUTE,
+		"SQ_DESCRIBE":   SQ_DESCRIBE,
+		"SQ_NFETCH":     SQ_NFETCH,
+		"SQ_CLOSE":      SQ_CLOSE,
+		"SQ_RELEASE":    SQ_RELEASE,
+		"SQ_EOT":        SQ_EOT,
+		"SQ_ERR":        SQ_ERR,
+		"SQ_TUPLE":      SQ_TUPLE,
+		"SQ_DONE":       SQ_DONE,
+		"SQ_NDESCRIBE":  SQ_NDESCRIBE,
+		"SQ_DBOPEN":     SQ_DBOPEN,
+		"SQ_WANTDONE":   SQ_WANTDONE,
+		"SQ_COST":       SQ_COST,
+		"SQ_EXIT":       SQ_EXIT,
+		"SQ_INFO":       SQ_INFO,
+		"SQ_INSERTDONE": SQ_INSERTDONE,
+		"SQ_RETTYPE":    SQ_RETTYPE,
+		"SQ_AUTOFREE":   SQ_AUTOFREE,
+		"SQ_PROTOCOLS":  SQ_PROTOCOLS,
+	}
+)
+
+func (t SqliType) String() string {
+	str, _ := SqliTypeStringMap[t]
+	return str
+}
+
+func ParseSqliType(str string) SqliType {
+	t, _ := StringSqliTypeMap[str]
+	return t
+}
+
 type TupleValue interface {
 	PackTupleValue(writer io.Writer) error
 	UnpackTupleValue(reader io.Reader) error
@@ -60,7 +158,7 @@ type SqliCmd struct {
 }
 
 func (*SqliCmd) Command() uint16 {
-	return 1
+	return uint16(SQ_COMMAND)
 }
 
 func (sq *SqliCmd) Pack() ([]byte, error) {
@@ -1089,7 +1187,7 @@ func (sq *SqliProtocols) Unpack(r io.Reader) error {
 }
 
 func UnpackSqliCommand(reader io.ReadSeeker) (SqliCommand, error) {
-	var cmd uint16
+	var cmd SqliType
 	pos, err := reader.Seek(0, io.SeekCurrent)
 	if err != nil {
 		return nil, err
@@ -1101,7 +1199,7 @@ func UnpackSqliCommand(reader io.ReadSeeker) (SqliCommand, error) {
 	}
 
 	switch cmd {
-	case 1:
+	case SQ_COMMAND:
 		command := &SqliCmd{}
 		err = command.Unpack(reader)
 		if err != nil {
@@ -1257,7 +1355,7 @@ func UnpackSqliCommand(reader io.ReadSeeker) (SqliCommand, error) {
 		}
 		return command, nil
 	default:
-		return nil, UnknownCommandError(cmd)
+		return nil, UnknownCommandError(uint16(cmd))
 	}
 }
 
