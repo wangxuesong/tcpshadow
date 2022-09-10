@@ -15,13 +15,14 @@
 package cmd
 
 import (
-	"github.com/spf13/cobra"
-	"github.com/wangxuesong/tcpshadow/model"
 	"io"
 	"log"
 	"net"
 	"sync"
 	"time"
+
+	"github.com/spf13/cobra"
+	"github.com/wangxuesong/tcpshadow/model"
 )
 
 // serverCmd represents the server command
@@ -34,7 +35,7 @@ var clientCmd = &cobra.Command{
 
 func runClientCommand(cmd *cobra.Command, args []string) {
 	//fmt.Println("server called")
-	datas := ReadPackages()
+	datas := ReadPackages(inputFile)
 
 	number := 0
 	waitGroup := &sync.WaitGroup{}

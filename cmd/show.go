@@ -16,10 +16,10 @@ package cmd
 
 import (
 	"bytes"
-	"github.com/davecgh/go-spew/spew"
-	"github.com/wangxuesong/tcpshadow/model"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/spf13/cobra"
+	"github.com/wangxuesong/tcpshadow/model"
 )
 
 var (
@@ -59,7 +59,7 @@ var showCmd = &cobra.Command{
 	Short: "show capture file",
 	Long:  `show capture file`,
 	Run: func(cmd *cobra.Command, args []string) {
-		packages := ReadPackages()
+		packages := ReadPackages(inputFile)
 		scs := spew.NewDefaultConfig()
 		scs.Indent = "    "
 		for _, pack := range packages {

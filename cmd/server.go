@@ -41,7 +41,7 @@ var (
 
 func runServerCommand(cmd *cobra.Command, args []string) {
 	//fmt.Println("server called")
-	datas := ReadPackages()
+	datas := ReadPackages("")
 	fmt.Println("Start...")
 	fmt.Printf("Listen: %s\n", listenAddress)
 	clientConn, err := net.Listen("tcp4", listenAddress)
@@ -90,14 +90,14 @@ func init() {
 	// is called directly, e.g.:
 	// serverCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 	serverCmd.Flags().StringVarP(&listenAddress, "listen", "l", "", "listen address")
-	serverCmd.MarkFlagRequired("listen")
+	_ = serverCmd.MarkFlagRequired("listen")
 	serverCmd.Flags().StringVarP(&inputFile, "input", "i", "", "input file")
-	serverCmd.MarkFlagRequired("input")
+	_ = serverCmd.MarkFlagRequired("input")
 	serverCmd.Flags().BoolVarP(&intercept, "intercept", "f", false, "intercept message")
 }
 
-func ReadPackages() []model.SavePackage {
-	file, err := os.Open(inputFile)
+func ReadPackages(input string) []model.SavePackage {
+	file, err := os.Open(input)
 	if err != nil {
 		panic(err)
 	}

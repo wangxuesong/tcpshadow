@@ -1,61 +1,16 @@
-// Copyright © 2018 NAME HERE <EMAIL ADDRESS>
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
-package cmd
+package convert
 
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
-	"github.com/spf13/cobra"
-	"github.com/wangxuesong/tcpshadow/model"
 	"io"
 	"log"
-	"os"
+
+	"github.com/wangxuesong/tcpshadow/model"
 )
 
-// toJsonCmd represents the tojson command
-var toJsonCmd = &cobra.Command{
-	Use:   "tojson",
-	Short: "convert capture file to json",
-	Long:  `convert capture file to json`,
-	Run: func(cmd *cobra.Command, args []string) {
-		packages := ReadPackages()
-		jsonStr, err := marshalSqliSavePackages(packages)
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		if outputFile != "" {
-			file, err := os.Create(outputFile)
-			if err != nil {
-				panic(err)
-			}
-			defer file.Close()
-
-			_, err = file.WriteString(jsonStr)
-			if err != nil {
-				panic(err)
-			}
-		} else {
-			fmt.Println(jsonStr)
-		}
-	},
-}
-
 type packageForJson struct {
-	Name        string               `json:"name""`
+	Name        string               `json:"name"`
 	AuthPackage [2]model.SavePackage `json:"auth,omitempty"`
 	SqliPackage []sqliPackage        `json:"package,omitempty"`
 }
@@ -71,7 +26,7 @@ type sqliPackage struct {
 	Command []jsonSqliCommand `json:"command"`
 }
 
-func marshalSqliPackage(packages []model.SavePackage) ([]sqliPackage, error) {
+func MarshalSqliPackage(packages []model.SavePackage) ([]sqliPackage, error) {
 	if len(packages) == 0 {
 		return nil, nil
 	}
@@ -102,11 +57,11 @@ func marshalSqliPackage(packages []model.SavePackage) ([]sqliPackage, error) {
 	return sqliPack, nil
 }
 
-func marshalSqliSavePackages(packages []model.SavePackage) (string, error) {
+func MarshalSqliSavePackages(packages []model.SavePackage) (string, error) {
 	pack := packageForJson{Name: "test"}
 	pack.AuthPackage[0] = packages[0]
 	pack.AuthPackage[1] = packages[1]
-	sqliPackages, err := marshalSqliPackage(packages[2:])
+	sqliPackages, err := MarshalSqliPackage(packages[2:])
 	pack.SqliPackage = sqliPackages
 
 	buf, err := json.MarshalIndent(pack, "", "  ")
@@ -114,14 +69,10 @@ func marshalSqliSavePackages(packages []model.SavePackage) (string, error) {
 		return "", err
 	}
 
-	tmp, _ := unmarshalSqliSavePackages(string(buf))
-	if tmp == nil {
-
-	}
 	return string(buf), nil
 }
 
-func unmarshalCommand[T model.SqliCommand](str json.RawMessage) (model.SqliCommand, error) {
+func UnmarshalCommand[T model.SqliCommand](str json.RawMessage) (model.SqliCommand, error) {
 	var cmd T
 	err := json.Unmarshal(str, &cmd)
 	if err != nil {
@@ -130,7 +81,7 @@ func unmarshalCommand[T model.SqliCommand](str json.RawMessage) (model.SqliComma
 	return cmd, nil
 }
 
-func unmarshalSqliSavePackages(jsonString string) ([]model.SavePackage, error) {
+func UnmarshalSqliSavePackages(jsonString string) ([]model.SavePackage, error) {
 	buf := bytes.NewBufferString(jsonString)
 	type unmarshalSqliPackage struct {
 		Number  int               `json:"number"`
@@ -174,133 +125,133 @@ func unmarshalSqliSavePackages(jsonString string) ([]model.SavePackage, error) {
 
 			switch model.ParseSqliType(t.Type) {
 			case model.SQ_COMMAND:
-				cmd, err := unmarshalCommand[*model.SqliCmd](t.Sqli)
+				cmd, err := UnmarshalCommand[*model.SqliCmd](t.Sqli)
 				if err != nil {
 					return nil, err
 				}
 				trans.Append(cmd)
 			case 2:
-				cmd, err := unmarshalCommand[*model.SqliPrepare](t.Sqli)
+				cmd, err := UnmarshalCommand[*model.SqliPrepare](t.Sqli)
 				if err != nil {
 					return nil, err
 				}
 				trans.Append(cmd)
 			case 3:
-				cmd, err := unmarshalCommand[*model.SqliCurName](t.Sqli)
+				cmd, err := UnmarshalCommand[*model.SqliCurName](t.Sqli)
 				if err != nil {
 					return nil, err
 				}
 				trans.Append(cmd)
 			case 4:
-				cmd, err := unmarshalCommand[*model.SqliID](t.Sqli)
+				cmd, err := UnmarshalCommand[*model.SqliID](t.Sqli)
 				if err != nil {
 					return nil, err
 				}
 				trans.Append(cmd)
 			case 6:
-				cmd, err := unmarshalCommand[*model.SqliOpen](t.Sqli)
+				cmd, err := UnmarshalCommand[*model.SqliOpen](t.Sqli)
 				if err != nil {
 					return nil, err
 				}
 				trans.Append(cmd)
 			case model.SQ_EXECUTE:
-				cmd, err := unmarshalCommand[*model.SqliExecute](t.Sqli)
+				cmd, err := UnmarshalCommand[*model.SqliExecute](t.Sqli)
 				if err != nil {
 					return nil, err
 				}
 				trans.Append(cmd)
 			case 8:
-				cmd, err := unmarshalCommand[*model.SqliDescribe](t.Sqli)
+				cmd, err := UnmarshalCommand[*model.SqliDescribe](t.Sqli)
 				if err != nil {
 					return nil, err
 				}
 				trans.Append(cmd)
 			case 9:
-				cmd, err := unmarshalCommand[*model.SqliNFetch](t.Sqli)
+				cmd, err := UnmarshalCommand[*model.SqliNFetch](t.Sqli)
 				if err != nil {
 					return nil, err
 				}
 				trans.Append(cmd)
 			case 10:
-				cmd, err := unmarshalCommand[*model.SqliClose](t.Sqli)
+				cmd, err := UnmarshalCommand[*model.SqliClose](t.Sqli)
 				if err != nil {
 					return nil, err
 				}
 				trans.Append(cmd)
 			case 11:
-				cmd, err := unmarshalCommand[*model.SqliRelease](t.Sqli)
+				cmd, err := UnmarshalCommand[*model.SqliRelease](t.Sqli)
 				if err != nil {
 					return nil, err
 				}
 				trans.Append(cmd)
 			case 12:
-				cmd, err := unmarshalCommand[*model.SqliEot](t.Sqli)
+				cmd, err := UnmarshalCommand[*model.SqliEot](t.Sqli)
 				if err != nil {
 					return nil, err
 				}
 				trans.Append(cmd)
 			case 14:
-				cmd, err := unmarshalCommand[*model.SqliTuple](t.Sqli)
+				cmd, err := UnmarshalCommand[*model.SqliTuple](t.Sqli)
 				if err != nil {
 					return nil, err
 				}
 				trans.Append(cmd)
 			case 15:
-				cmd, err := unmarshalCommand[*model.SqliDone](t.Sqli)
+				cmd, err := UnmarshalCommand[*model.SqliDone](t.Sqli)
 				if err != nil {
 					return nil, err
 				}
 				trans.Append(cmd)
 			case 22:
-				cmd, err := unmarshalCommand[*model.SqliNDescribe](t.Sqli)
+				cmd, err := UnmarshalCommand[*model.SqliNDescribe](t.Sqli)
 				if err != nil {
 					return nil, err
 				}
 				trans.Append(cmd)
 			case 36:
-				cmd, err := unmarshalCommand[*model.SqliDBOpen](t.Sqli)
+				cmd, err := UnmarshalCommand[*model.SqliDBOpen](t.Sqli)
 				if err != nil {
 					return nil, err
 				}
 				trans.Append(cmd)
 			case 49:
-				cmd, err := unmarshalCommand[*model.SqliWantDone](t.Sqli)
+				cmd, err := UnmarshalCommand[*model.SqliWantDone](t.Sqli)
 				if err != nil {
 					return nil, err
 				}
 				trans.Append(cmd)
 			case 55:
-				cmd, err := unmarshalCommand[*model.SqliCost](t.Sqli)
+				cmd, err := UnmarshalCommand[*model.SqliCost](t.Sqli)
 				if err != nil {
 					return nil, err
 				}
 				trans.Append(cmd)
 			case 56:
-				cmd, err := unmarshalCommand[*model.SqliExit](t.Sqli)
+				cmd, err := UnmarshalCommand[*model.SqliExit](t.Sqli)
 				if err != nil {
 					return nil, err
 				}
 				trans.Append(cmd)
 			case 81:
-				cmd, err := unmarshalCommand[*model.SqliInfo](t.Sqli)
+				cmd, err := UnmarshalCommand[*model.SqliInfo](t.Sqli)
 				if err != nil {
 					return nil, err
 				}
 				trans.Append(cmd)
 			case model.SQ_INSERTDONE:
-				cmd, err := unmarshalCommand[*model.SqliInsertDone](t.Sqli)
+				cmd, err := UnmarshalCommand[*model.SqliInsertDone](t.Sqli)
 				if err != nil {
 					return nil, err
 				}
 				trans.Append(cmd)
 			case 100:
-				cmd, err := unmarshalCommand[*model.SqliRetType](t.Sqli)
+				cmd, err := UnmarshalCommand[*model.SqliRetType](t.Sqli)
 				if err != nil {
 					return nil, err
 				}
 				trans.Append(cmd)
 			case 126:
-				cmd, err := unmarshalCommand[*model.SqliProtocols](t.Sqli)
+				cmd, err := UnmarshalCommand[*model.SqliProtocols](t.Sqli)
 				if err != nil {
 					return nil, err
 				}
@@ -321,24 +272,4 @@ func unmarshalSqliSavePackages(jsonString string) ([]model.SavePackage, error) {
 	}
 
 	return result, nil
-}
-
-func init() {
-	rootCmd.AddCommand(toJsonCmd)
-
-	// Here you will define your flags and configuration settings.
-
-	// Cobra supports Persistent Flags which will work for this command
-	// and all subcommands, e.g.:
-	// toJsonCmd.PersistentFlags().String("foo", "", "A help for foo")
-
-	// Cobra supports local flags which will only run when this command
-	// is called directly, e.g.:
-	toJsonCmd.Flags().StringVarP(&inputFile, "input", "i", "", "input file")
-	toJsonCmd.MarkFlagRequired("input")
-	toJsonCmd.Flags().StringVarP(&outputFile, "output", "o", "", "output file")
-	//toJsonCmd.MarkFlagRequired("output")
-	//toJsonCmd.Flags().BoolVarP(&color, "color", "c", false, "print with color")
-	//toJsonCmd.Flags().BoolVarP(&raw, "raw", "r", false, "show raw")
-	//toJsonCmd.Flags().BoolVarP(&printPackage, "parse", "p", false, "parse package")
 }

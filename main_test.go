@@ -11,7 +11,7 @@ import (
 )
 
 func TestServer(t *testing.T) {
-	datas := cmd.ReadPackages()
+	datas := cmd.ReadPackages("")
 	// count := len(datas)
 	// index := 0
 	// nextServerResponse := func(index int) SavePackage {
