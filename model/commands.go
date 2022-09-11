@@ -189,8 +189,8 @@ func (sq *SqliCmd) Unpack(r io.Reader) error {
 
 // SqliPrepare SQ_PREPARE 2
 type SqliPrepare struct {
-	QMarks uint16
-	Sql    string
+	QMarks uint16 `yaml:"QMarks"`
+	Sql    string `yaml:"Sql"`
 }
 
 func (*SqliPrepare) Command() uint16 {
