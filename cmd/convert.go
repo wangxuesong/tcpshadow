@@ -23,7 +23,7 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
-	"github.com/wangxuesong/tcpshadow/convert"
+	"github.com/wangxuesong/tcpshadow/convert/json"
 )
 
 var (
@@ -74,7 +74,7 @@ func convertFrom(source, target, _ string) error {
 	}
 	defer file.Close()
 	jsonStr, err := io.ReadAll(file)
-	output, err := convert.UnmarshalSqliSavePackages(string(jsonStr))
+	output, err := json.UnmarshalSqliSavePackages(string(jsonStr))
 	if err != nil {
 		return err
 	}
@@ -113,7 +113,7 @@ func convertFrom(source, target, _ string) error {
 
 func convertTo(source, target, _ string) error {
 	packages := ReadPackages(source)
-	jsonStr, err := convert.MarshalSqliSavePackages(packages)
+	jsonStr, err := json.MarshalSqliSavePackages(packages)
 	if err != nil {
 		return err
 	}
