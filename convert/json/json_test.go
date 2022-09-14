@@ -32,6 +32,80 @@ func TestConvert_SqliCommand_Json(t *testing.T) {
 			_, ok := cmd.(*model.SqliEot)
 			require.True(t, ok)
 		},
+	}, {
+		name:    "SqliNDescribe",
+		json:    []byte(`{"type":"SQ_NDESCRIBE","sqli":{}}`),
+		cmdType: &model.SqliNDescribe{},
+		assertFunc: func(t *testing.T, cmd model.SqliCommand) {
+			_, ok := cmd.(*model.SqliNDescribe)
+			require.True(t, ok)
+		},
+	}, {
+		name:    "SqliWantDone",
+		json:    []byte(`{"type":"SQ_WANTDONE","sqli":{}}`),
+		cmdType: &model.SqliWantDone{},
+		assertFunc: func(t *testing.T, cmd model.SqliCommand) {
+			_, ok := cmd.(*model.SqliWantDone)
+			require.True(t, ok)
+		},
+	}, {
+		name:    "SqliProtocols",
+		json:    []byte(`{"type":"SQ_PROTOCOLS","sqli":{"Protocol":"//x//DyMqpcQ"}}`),
+		cmdType: &model.SqliProtocols{},
+		assertFunc: func(t *testing.T, cmd model.SqliCommand) {
+			protocols, _ := cmd.(*model.SqliProtocols)
+			assert.Equal(t, []byte{255, 252, 127, 252, 60, 140, 170, 151, 16}, protocols.Protocol)
+		},
+	}, {
+		name:    "SqliInfo",
+		json:    []byte(`{"type":"SQ_INFO","sqli":{"MessageType":6,"Length":38,"InfoEnv":{"NameLength":12,"ValueLength":4,"Env":{"DBTEMP":"/tmp","SUBQCACHESZ":"10"}}}}`),
+		cmdType: &model.SqliInfo{},
+		assertFunc: func(t *testing.T, cmd model.SqliCommand) {
+			sqli, _ := cmd.(*model.SqliInfo)
+			assert.Equal(t, int16(38), sqli.Length)
+		},
+	}, {
+		name:    "SqliDBOpen",
+		json:    []byte(`{"type":"SQ_DBOPEN","sqli":{"DBName":"dfe","Foo":0}}`),
+		cmdType: &model.SqliDBOpen{},
+		assertFunc: func(t *testing.T, cmd model.SqliCommand) {
+			sqli, _ := cmd.(*model.SqliDBOpen)
+			assert.Equal(t, "dfe", sqli.DBName)
+		},
+	}, {
+		name:    "SqliDone",
+		json:    []byte(`{"type":"SQ_DONE","sqli":{"Warning":21,"Rows":0,"RowID":0,"SerialID":0}}`),
+		cmdType: &model.SqliDone{},
+		assertFunc: func(t *testing.T, cmd model.SqliCommand) {
+			sqli, _ := cmd.(*model.SqliDone)
+			assert.Equal(t, int16(21), sqli.Warning)
+		},
+	}, {
+		name:    "SqliCost",
+		json:    []byte(`{"type":"SQ_COST","sqli":{"EstimatedRows":1,"EstimatedIO":1}}`),
+		cmdType: &model.SqliCost{},
+		assertFunc: func(t *testing.T, cmd model.SqliCommand) {
+			sqli, _ := cmd.(*model.SqliCost)
+			assert.Equal(t, uint32(1), sqli.EstimatedRows)
+		},
+	}, {
+		name:    "SqliCost",
+		json:    []byte(`{"type":"SQ_DESCRIBE","sqli":{"StatementType":2,"StatementID":0,"EstimatedCost":0,"TupleSize":130,"CountOfFields":1,"StringTable":5,"Fields":[{"FieldIndex":0,"ColumnStartPos":0,"ColumnType":13,"ColumnExtendedBuiltinId":0,"OwnerName":0,"ExtendedName":0,"Reference":0,"Alignment":0,"SourceType":0,"Length":128,"Name":"site"}]}}`),
+		cmdType: &model.SqliDescribe{},
+		assertFunc: func(t *testing.T, cmd model.SqliCommand) {
+			sqli, _ := cmd.(*model.SqliDescribe)
+			assert.Equal(t, uint16(2), sqli.StatementType)
+			assert.Equal(t, uint32(130), sqli.TupleSize)
+			assert.Equal(t, 1, len(sqli.Fields))
+		},
+	}, {
+		name:    "SqliExit",
+		json:    []byte(`{"type":"SQ_EXIT","sqli":{}}`),
+		cmdType: &model.SqliExit{},
+		assertFunc: func(t *testing.T, cmd model.SqliCommand) {
+			_, ok := cmd.(*model.SqliExit)
+			require.True(t, ok)
+		},
 	}}
 
 	for _, test := range tests {
@@ -42,7 +116,7 @@ func TestConvert_SqliCommand_Json(t *testing.T) {
 
 		buf, err := json.Marshal(newJsonSqliCommand(cmd))
 		require.NoError(t, err)
-		assert.Equal(t, test.json, buf, fmt.Sprintf("Test Failed: %s", test.name))
+		assert.Equal(t, string(test.json), string(buf), fmt.Sprintf("Test Failed: %s", test.name))
 	}
 }
 

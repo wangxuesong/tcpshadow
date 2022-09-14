@@ -819,7 +819,7 @@ type SqliDone struct {
 }
 
 func (*SqliDone) Command() uint16 {
-	return 15
+	return SQ_DONE
 }
 
 func (sq *SqliDone) Pack() ([]byte, error) {
@@ -847,7 +847,7 @@ type SqliNDescribe struct {
 }
 
 func (*SqliNDescribe) Command() uint16 {
-	return 22
+	return SQ_NDESCRIBE
 }
 
 func (*SqliNDescribe) Pack() ([]byte, error) {
@@ -865,7 +865,7 @@ type SqliDBOpen struct {
 }
 
 func (sq *SqliDBOpen) Command() uint16 {
-	return 36
+	return SQ_DBOPEN
 }
 
 func (sq *SqliDBOpen) Pack() ([]byte, error) {
@@ -901,7 +901,7 @@ type SqliWantDone struct {
 }
 
 func (*SqliWantDone) Command() uint16 {
-	return 49
+	return SQ_WANTDONE
 }
 
 func (*SqliWantDone) Pack() ([]byte, error) {
@@ -919,7 +919,7 @@ type SqliCost struct {
 }
 
 func (sq *SqliCost) Command() uint16 {
-	return 55
+	return SQ_COST
 }
 
 func (sq *SqliCost) Pack() ([]byte, error) {
@@ -961,7 +961,7 @@ type SqliInfo struct {
 }
 
 func (sq *SqliInfo) Command() uint16 {
-	return 81
+	return SQ_INFO
 }
 
 func (sq *SqliInfo) Pack() ([]byte, error) {
@@ -1151,7 +1151,7 @@ type SqliProtocols struct {
 }
 
 func (sq *SqliProtocols) Command() uint16 {
-	return 126
+	return SQ_PROTOCOLS
 }
 
 func (sq *SqliProtocols) Pack() ([]byte, error) {
@@ -1286,7 +1286,7 @@ func UnpackSqliCommand(reader io.ReadSeeker) (SqliCommand, error) {
 			return nil, err
 		}
 		return command, nil
-	case 15:
+	case SQ_DONE:
 		command := &SqliDone{}
 		err = command.Unpack(reader)
 		if err != nil {
@@ -1294,10 +1294,10 @@ func UnpackSqliCommand(reader io.ReadSeeker) (SqliCommand, error) {
 			return nil, err
 		}
 		return command, nil
-	case 22:
+	case SQ_NDESCRIBE:
 		command := &SqliNDescribe{}
 		return command, nil
-	case 36:
+	case SQ_DBOPEN:
 		command := &SqliDBOpen{}
 		err = command.Unpack(reader)
 		if err != nil {
@@ -1305,10 +1305,10 @@ func UnpackSqliCommand(reader io.ReadSeeker) (SqliCommand, error) {
 			return nil, err
 		}
 		return command, nil
-	case 49:
+	case SQ_WANTDONE:
 		command := &SqliWantDone{}
 		return command, nil
-	case 55:
+	case SQ_COST:
 		command := &SqliCost{}
 		err = command.Unpack(reader)
 		if err != nil {
@@ -1319,7 +1319,7 @@ func UnpackSqliCommand(reader io.ReadSeeker) (SqliCommand, error) {
 	case 56:
 		command := &SqliExit{}
 		return command, nil
-	case 81:
+	case SQ_INFO:
 		command := &SqliInfo{}
 		err = command.Unpack(reader)
 		if err != nil {
@@ -1346,7 +1346,7 @@ func UnpackSqliCommand(reader io.ReadSeeker) (SqliCommand, error) {
 	case 108:
 		command := &SqliAutoFree{}
 		return command, nil
-	case 126:
+	case SQ_PROTOCOLS:
 		command := &SqliProtocols{}
 		err = command.Unpack(reader)
 		if err != nil {
