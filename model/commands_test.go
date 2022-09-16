@@ -55,12 +55,20 @@ func TestSqTuple_Pack_Unpack(t *testing.T) {
 }
 
 func TestSqliDescribe_Pack_Unpack(t *testing.T) {
-	expect := []byte{0, 8, 0, 2, 0, 0, 0, 0, 0, 0, 0, 55, 0, 2, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 2, 0, 0, 0, 4, 0, 13, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 50, 97, 0, 98, 0}
+	expect := []byte{0, 8, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 56, 0, 3,
+		0, 0, 0, 6, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0,
+		0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+		0, 4, 0, 0, 0, 2, 0, 0, 0, 4, 0, 13, 0, 0, 0, 0,
+		0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 50,
+		0, 0, 0, 4, 0, 0, 0, 56, 0, 41, 0, 0, 0, 11, 0, 8,
+		103, 98, 97, 115, 101, 100, 98, 116, 0, 4, 99, 108,
+		111, 98, 0, 1, 0, 4, 0, 0, 0, 0, 0, 0, 0, 72, 97, 0,
+		98, 0, 99, 0}
 	desc := &SqliDescribe{
 		StatementType: 2,
 		StatementID:   0,
 		EstimatedCost: 0,
-		TupleSize:     55,
+		TupleSize:     56,
 	}
 	field1 := SqliField{
 		FieldIndex:     0,
@@ -78,6 +86,19 @@ func TestSqliDescribe_Pack_Unpack(t *testing.T) {
 		Name:           "b",
 	}
 	desc.AppendFields(field2)
+	field3 := SqliField{
+		FieldIndex:              4,
+		ColumnStartPos:          56,
+		ColumnType:              41,
+		ColumnExtendedBuiltinId: 11,
+		OwnerName:               "gbasedbt",
+		ExtendedName:            "clob",
+		Reference:               1,
+		Alignment:               4,
+		Length:                  72,
+		Name:                    "c",
+	}
+	desc.AppendFields(field3)
 
 	buf, err := desc.Pack()
 	assert.NoError(t, err)
@@ -426,6 +447,23 @@ func TestSqliRetType_Pack_Unpack(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, sqliRetType, cmd)
 	pos, err := buffer.Seek(0, io.SeekCurrent)
+	assert.NoError(t, err)
+	assert.EqualValues(t, pos, len(expect))
+
+	sqliRetType.Columns[0].Type = 44
+	sqliRetType.Columns[0].Length = 72
+	sqliRetType.Columns[0].OwnerName = "gbasedbt"
+	sqliRetType.Columns[0].ExtTypeName = "clob"
+	expect = []byte{0, 100, 0, 1, 0, 1, 0, 44, 0, 8, 103, 98, 97, 115, 101, 100, 98, 116, 0, 4, 99, 108, 111, 98, 0, 0, 0, 72}
+	buf, err = sqliRetType.Pack()
+	assert.NoError(t, err)
+	assert.Equal(t, expect, buf)
+
+	buffer = bytes.NewReader(expect)
+	cmd, err = UnpackSqliCommand(buffer)
+	assert.NoError(t, err)
+	assert.Equal(t, sqliRetType, cmd)
+	pos, err = buffer.Seek(0, io.SeekCurrent)
 	assert.NoError(t, err)
 	assert.EqualValues(t, pos, len(expect))
 }

@@ -91,14 +91,16 @@ func printPack(colorStr string, savePackage model.SavePackage) {
 		if printPackage && savePackage.Number >= 2 {
 			reader := bytes.NewReader(savePackage.Buffer)
 			cmds, err := model.UnpackSqliTransmission(reader)
-			if cmds[0].Command() == 8 {
-				desc = cmds[0].(*model.SqliDescribe)
-			}
-			if cmds[0].Command() == new(model.SqliTuple).Command() {
-				if desc != nil {
-					tuple := cmds[0].(*model.SqliTuple)
-					tuple.SetMetaData(desc.Fields)
-					tuple.UnpackValues()
+			if err == nil {
+				if cmds[0].Command() == 8 {
+					desc = cmds[0].(*model.SqliDescribe)
+				}
+				if cmds[0].Command() == new(model.SqliTuple).Command() {
+					if desc != nil {
+						tuple := cmds[0].(*model.SqliTuple)
+						tuple.SetMetaData(desc.Fields)
+						tuple.UnpackValues()
+					}
 				}
 			}
 			if err != nil {

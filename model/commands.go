@@ -323,7 +323,7 @@ func (sq *SqliBind) Unpack(r io.Reader) error {
 			FetchInt16(&col.Indicator).
 			FetchUint16(&precsionLow).FetchUint16(&precsionHigh).
 			FetchUint16(&col.Data)
-		col.Precision = uint32(precsionHigh<<16) + uint32(precsionLow)
+		col.Precision = uint32(precsionHigh)<<16 + uint32(precsionLow)
 		sq.Columns = append(sq.Columns, col)
 	}
 	return unpacker.Error()
@@ -475,10 +475,26 @@ func (sq *SqliDescribe) packFields(writer io.Writer) error {
 		packer.PushUint32(f.FieldIndex).
 			PushUint32(f.ColumnStartPos).
 			PushUint16(f.ColumnType).
-			PushUint32(f.ColumnExtendedBuiltinId).
-			PushUint16(f.OwnerName).
-			PushUint16(f.ExtendedName).
-			PushUint16(f.Reference).
+			PushUint32(f.ColumnExtendedBuiltinId)
+		if len(f.OwnerName) > 0 {
+			packer.PushUint16(uint16(len(f.OwnerName)))
+			packer.PushBytes([]byte(f.OwnerName))
+			if len(f.OwnerName)%2 == 1 {
+				packer.PushByte(0)
+			}
+		} else {
+			packer.PushUint16(0)
+		}
+		if len(f.ExtendedName) > 0 {
+			packer.PushUint16(uint16(len(f.ExtendedName)))
+			packer.PushBytes([]byte(f.ExtendedName))
+			if len(f.ExtendedName)%2 == 1 {
+				packer.PushByte(0)
+			}
+		} else {
+			packer.PushUint16(0)
+		}
+		packer.PushUint16(f.Reference).
 			PushUint16(f.Alignment).
 			PushUint32(f.SourceType).
 			PushUint32(f.Length)
@@ -495,10 +511,25 @@ func (sq *SqliDescribe) unpackFields(r io.Reader) error {
 		unpacker.FetchUint32(&f.FieldIndex).
 			FetchUint32(&f.ColumnStartPos).
 			FetchUint16(&f.ColumnType).
-			FetchUint32(&f.ColumnExtendedBuiltinId).
-			FetchUint16(&f.OwnerName).
-			FetchUint16(&f.ExtendedName).
-			FetchUint16(&f.Reference).
+			FetchUint32(&f.ColumnExtendedBuiltinId)
+		var length uint16
+		unpacker.FetchUint16(&length)
+		if length > 0 {
+			unpacker.FetchString(uint64(length), &f.OwnerName)
+			if length%2 == 1 {
+				var tmp byte
+				unpacker.FetchByte(&tmp)
+			}
+		}
+		unpacker.FetchUint16(&length)
+		if length > 0 {
+			unpacker.FetchString(uint64(length), &f.ExtendedName)
+			if length%2 == 1 {
+				var tmp byte
+				unpacker.FetchByte(&tmp)
+			}
+		}
+		unpacker.FetchUint16(&f.Reference).
 			FetchUint16(&f.Alignment).
 			FetchUint32(&f.SourceType).
 			FetchUint32(&f.Length)
@@ -518,8 +549,8 @@ type SqliField struct {
 	ColumnStartPos          uint32
 	ColumnType              uint16
 	ColumnExtendedBuiltinId uint32
-	OwnerName               uint16
-	ExtendedName            uint16
+	OwnerName               string
+	ExtendedName            string
 	Reference               uint16
 	Alignment               uint16
 	SourceType              uint32
@@ -1104,7 +1135,20 @@ func (sq *SqliRetType) Pack() ([]byte, error) {
 	packer.PushUint16(sq.Command()).PushUint16(sq.Direction).
 		PushUint16(uint16(len(sq.Columns)))
 	for _, c := range sq.Columns {
-		packer.PushUint16(c.Type).PushUint32(c.Length)
+		packer.PushUint16(c.Type)
+		if c.Type == 43 /* lvarchar */ || c.Type == 44 /* clob */ || c.Type == 45 /* sendrecv */ {
+			packer.PushUint16(uint16(len(c.OwnerName)))
+			packer.PushBytes([]byte(c.OwnerName))
+			if len(c.OwnerName)%2 == 1 {
+				packer.PushByte(0)
+			}
+			packer.PushUint16(uint16(len(c.ExtTypeName)))
+			packer.PushBytes([]byte(c.ExtTypeName))
+			if len(c.ExtTypeName)%2 == 1 {
+				packer.PushByte(0)
+			}
+		}
+		packer.PushUint32(c.Length)
 	}
 	return buffer.Bytes(), packer.Error()
 }
@@ -1117,16 +1161,38 @@ func (sq *SqliRetType) Unpack(r io.Reader) error {
 	sq.Columns = make([]ColumnType, 0, count)
 	for i := 0; i < int(count); i++ {
 		var c ColumnType
-		unpacker.FetchUint16(&c.Type).
-			FetchUint32(&c.Length)
+		unpacker.FetchUint16(&c.Type)
+		if c.Type == 43 /* lvarchar */ || c.Type == 44 /* clob */ || c.Type == 45 /* sendrecv */ {
+			var length uint16
+			var name string
+			// owner name
+			unpacker.FetchUint16(&length)
+			unpacker.FetchString(uint64(length), &name)
+			c.OwnerName = name
+			if length%2 == 1 {
+				var tmp byte
+				unpacker.FetchByte(&tmp)
+			}
+			// extended type name
+			unpacker.FetchUint16(&length)
+			unpacker.FetchString(uint64(length), &name)
+			c.ExtTypeName = name
+			if length%2 == 1 {
+				var tmp byte
+				unpacker.FetchByte(&tmp)
+			}
+		}
+		unpacker.FetchUint32(&c.Length)
 		sq.Columns = append(sq.Columns, c)
 	}
 	return unpacker.Error()
 }
 
 type ColumnType struct {
-	Type   uint16
-	Length uint32
+	Type        uint16
+	Length      uint32
+	OwnerName   string
+	ExtTypeName string
 }
 
 // SqliAutoFree SQ_AUTOFREE 108
