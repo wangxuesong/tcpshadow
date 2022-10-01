@@ -81,7 +81,7 @@ type Service struct {
 	waitGroup *sync.WaitGroup
 }
 
-// Make a new Service.
+// NewService Make a new Service.
 func NewService() *Service {
 	s := &Service{
 		done:      make(chan bool),
@@ -137,6 +137,8 @@ func (s *Service) Serve(listener *net.TCPListener) {
 				panic(err)
 			}
 
+			serverParser := model.NewPgServerParser()
+			clientParser := model.NewPgClientParser()
 			index := 0
 			for {
 				select {
@@ -177,7 +179,7 @@ func (s *Service) Serve(listener *net.TCPListener) {
 						_, _ = scs.Print(colorStr)
 						switch protocolType {
 						case "pg":
-							scs.Dump(data)
+							//scs.Dump(data)
 							if data.Number < 1 {
 								if data.Number == 0 {
 									backend, err := pgproto3.NewBackend(
@@ -200,7 +202,8 @@ func (s *Service) Serve(listener *net.TCPListener) {
 								}
 							} else {
 								if data.Forward == model.ServerToClient {
-									msg, err := model.ParseServerMessage(bytes.NewReader(data.Buffer))
+									serverParser.Append(data.Buffer)
+									msg, err := serverParser.ParseMessage()
 									if err != nil {
 										scs.Dump(data)
 									} else {
@@ -214,7 +217,8 @@ func (s *Service) Serve(listener *net.TCPListener) {
 										}
 									}
 								} else {
-									msg, err := model.ParseClientMessage(bytes.NewReader(data.Buffer))
+									clientParser.Append(data.Buffer)
+									msg, err := clientParser.ParseMessage()
 									if err != nil {
 										scs.Dump(data)
 									} else {
