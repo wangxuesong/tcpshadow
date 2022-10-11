@@ -16,8 +16,11 @@ package cmd
 
 import (
 	"bytes"
+	"encoding/json"
+	"fmt"
 
 	"github.com/davecgh/go-spew/spew"
+	"github.com/jackc/pgproto3"
 	"github.com/spf13/cobra"
 	"github.com/wangxuesong/tcpshadow/model"
 )
@@ -59,21 +62,52 @@ var showCmd = &cobra.Command{
 	Short: "show capture file",
 	Long:  `show capture file`,
 	Run: func(cmd *cobra.Command, args []string) {
-		packages := ReadPackages(inputFile)
-		scs := spew.NewDefaultConfig()
-		scs.Indent = "    "
-		for _, pack := range packages {
-			switch pack.Forward {
-			case model.ClientToServer:
-				printPack(GREEN, pack)
-			case model.ServerToClient:
-				printPack(YELLOW, pack)
-			}
+		switch protocolType {
+		case "sqli":
+			showSqli()
+		case "pg":
+			showPg()
 		}
 	},
 }
 
-func printPack(colorStr string, savePackage model.SavePackage) {
+func showPg() {
+	serverParser := model.NewPgServerParser()
+	clientParser := model.NewPgClientParser()
+	packages := ReadPackages(inputFile)
+	scs := spew.NewDefaultConfig()
+	scs.Indent = "    "
+	for _, pack := range packages {
+		switch pack.Forward {
+		case model.ClientToServer:
+			if pack.Number == 0 {
+				backend, err := pgproto3.NewBackend(
+					pgproto3.NewChunkReader(bytes.NewReader(pack.Buffer)),
+					nil)
+				msg, err := backend.ReceiveStartupMessage()
+				if err != nil {
+					printError(scs, RED, err)
+					continue
+				}
+				buf, err := json.MarshalIndent(msg, "", "  ")
+				if err != nil {
+					printError(scs, RED, err)
+					continue
+				} else {
+					_, _ = scs.Print(GREEN)
+					_, _ = scs.Print(fmt.Sprintln("C->S", string(buf)))
+					_, _ = scs.Print(CLEAR)
+				}
+				continue
+			}
+			printPgPack(GREEN, pack, clientParser)
+		case model.ServerToClient:
+			printPgPack(YELLOW, pack, serverParser)
+		}
+	}
+}
+
+func printPgPack(colorStr string, savePackage model.SavePackage, parser model.MessageParser) {
 	scs := spew.NewDefaultConfig()
 	scs.Indent = "    "
 	clearStr := CLEAR
@@ -83,9 +117,65 @@ func printPack(colorStr string, savePackage model.SavePackage) {
 		clearStr = ""
 		warningStr = ""
 	}
-	scs.Print(colorStr)
+	_, _ = scs.Print(colorStr)
 	if raw {
-		scs.Printf("%v\n", savePackage)
+		_, _ = scs.Printf("%v\n", savePackage)
+	} else {
+		if printPackage {
+			_, _ = parser.Append(savePackage.Buffer)
+			msg, err := parser.ParseMessage()
+			if err != nil {
+				printError(scs, warningStr, err)
+				//scs.Dump(savePackage)
+			} else {
+				for _, i := range msg {
+					buf, err := json.MarshalIndent(i, "", "  ")
+					if err == nil {
+						fmt.Println("S->C", string(buf))
+					} else {
+
+					}
+				}
+			}
+		} else {
+			scs.Dump(savePackage)
+		}
+	}
+	_, _ = scs.Println(clearStr)
+}
+
+func printError(scs *spew.ConfigState, color string, err error) {
+	_, _ = scs.Print(color)
+	_, _ = scs.Print(err)
+}
+
+func showSqli() {
+	packages := ReadPackages(inputFile)
+	scs := spew.NewDefaultConfig()
+	scs.Indent = "    "
+	for _, pack := range packages {
+		switch pack.Forward {
+		case model.ClientToServer:
+			printSqliPack(GREEN, pack)
+		case model.ServerToClient:
+			printSqliPack(YELLOW, pack)
+		}
+	}
+}
+
+func printSqliPack(colorStr string, savePackage model.SavePackage) {
+	scs := spew.NewDefaultConfig()
+	scs.Indent = "    "
+	clearStr := CLEAR
+	warningStr := RED
+	if !color {
+		colorStr = ""
+		clearStr = ""
+		warningStr = ""
+	}
+	_, _ = scs.Print(colorStr)
+	if raw {
+		_, _ = scs.Printf("%v\n", savePackage)
 	} else {
 		var desc *model.SqliDescribe
 		if printPackage && savePackage.Number >= 2 {
@@ -99,13 +189,13 @@ func printPack(colorStr string, savePackage model.SavePackage) {
 					if desc != nil {
 						tuple := cmds[0].(*model.SqliTuple)
 						tuple.SetMetaData(desc.Fields)
-						tuple.UnpackValues()
+						_ = tuple.UnpackValues()
 					}
 				}
 			}
 			if err != nil {
-				scs.Print(warningStr)
-				scs.Println(err)
+				_, _ = scs.Print(warningStr)
+				_, _ = scs.Println(err)
 				scs.Dump(savePackage)
 			} else {
 				scs.Dump(cmds)
@@ -114,7 +204,7 @@ func printPack(colorStr string, savePackage model.SavePackage) {
 			scs.Dump(savePackage)
 		}
 	}
-	scs.Println(clearStr)
+	_, _ = scs.Println(clearStr)
 }
 
 func init() {
@@ -129,8 +219,9 @@ func init() {
 	// Cobra supports local flags which will only run when this command
 	// is called directly, e.g.:
 	showCmd.Flags().StringVarP(&inputFile, "input", "i", "", "input file")
-	showCmd.MarkFlagRequired("input")
+	_ = showCmd.MarkFlagRequired("input")
 	showCmd.Flags().BoolVarP(&color, "color", "c", false, "print with color")
 	showCmd.Flags().BoolVarP(&raw, "raw", "r", false, "show raw")
 	showCmd.Flags().BoolVarP(&printPackage, "parse", "p", false, "parse package")
+	showCmd.Flags().StringVarP(&protocolType, "type", "t", "sqli", "protocol type")
 }

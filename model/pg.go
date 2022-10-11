@@ -2,8 +2,9 @@ package model
 
 import (
 	"bytes"
-	pgproto "github.com/jackc/pgproto3"
 	"io"
+
+	pgproto "github.com/jackc/pgproto3"
 )
 
 type PgCommand pgproto.Message
@@ -23,6 +24,11 @@ func (t *PgTransmission) Pack() ([]byte, error) {
 
 func (t *PgTransmission) Append(cmd PgCommand) {
 	*t = append(*t, cmd)
+}
+
+type MessageParser interface {
+	Append(data []byte) (int, error)
+	ParseMessage() (PgTransmission, error)
 }
 
 type PgServerParser struct {
