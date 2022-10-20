@@ -43,6 +43,11 @@ Flags:
   -t, --type string     客户端协议类型 (缺省 "sqli"，支持 sqli、pg)
 ```
 
+```shell
+tcpshadow capture -l 127.0.0.1:11088 -s 127.0.0.1:5432 -t pg -o pg -p
+tcpshadow capture -l 127.0.0.1:11088 -s 127.0.0.1:9088 -o gbase -p
+```
+
 ### show
 
 显示抓包文件中的内容。
@@ -60,4 +65,9 @@ Flags:
   -p, --parse          解析包格式
   -r, --raw            显示原始数据
   -t, --type string    客户端协议类型 (缺省 "sqli"，支持 sqli、p)
+```
+
+```shell
+tcpshadow show -i pg -c -t pg -p
+tcpshadow show -i gbase -c -p
 ```

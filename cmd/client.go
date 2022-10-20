@@ -94,7 +94,7 @@ func runClientCommand(cmd *cobra.Command, args []string) {
 				if err != nil {
 					panic(err)
 				}
-				printPack(GREEN, d)
+				printSqliPack(GREEN, d)
 			case d := <-serverDataChan:
 				data := model.SavePackage{
 					Number:  number,
@@ -103,7 +103,7 @@ func runClientCommand(cmd *cobra.Command, args []string) {
 					Buffer:  d.Buffer,
 				}
 				number++
-				printPack(YELLOW, data)
+				printSqliPack(YELLOW, data)
 				clientNextChan <- struct{}{}
 			}
 		}
@@ -118,7 +118,7 @@ func runClientCommand(cmd *cobra.Command, args []string) {
 			//if err != nil {
 			//	panic(err)
 			//}
-			//printPack(GREEN, d)
+			//printSqliPack(GREEN, d)
 			clientDataChan <- d
 			number++
 			<-clientNextChan
@@ -135,7 +135,7 @@ func runClientCommand(cmd *cobra.Command, args []string) {
 				Length:  len(buf),
 				Buffer:  buf,
 			}
-			printPack(YELLOW, data)
+			printSqliPack(YELLOW, data)
 
 		}
 	}
