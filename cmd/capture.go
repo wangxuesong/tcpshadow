@@ -102,6 +102,7 @@ func (s *Service) Stop() {
 // Stop listening if anything is received on the service's channel.
 func (s *Service) Serve(listener *net.TCPListener) {
 	defer s.waitGroup.Done()
+	s.waitGroup.Add(1)
 	for {
 		select {
 		case <-s.done:
@@ -124,7 +125,6 @@ func (s *Service) Serve(listener *net.TCPListener) {
 			panic(err)
 		}
 
-		s.waitGroup.Add(1)
 		monitor := make(chan model.Data)
 
 		go func() {
