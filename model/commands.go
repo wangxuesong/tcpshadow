@@ -30,6 +30,7 @@ const (
 	SQ_ERR                 = 13
 	SQ_TUPLE               = 14
 	SQ_DONE                = 15
+	SQ_CMMTWORK            = 19
 	SQ_NDESCRIBE           = 22
 	SQ_DBOPEN              = 36
 	SQ_WANTDONE            = 49
@@ -69,6 +70,7 @@ var (
 		SQ_RETTYPE:    "SQ_RETTYPE",
 		SQ_AUTOFREE:   "SQ_AUTOFREE",
 		SQ_PROTOCOLS:  "SQ_PROTOCOLS",
+		SQ_CMMTWORK:   "SQ_CMMTWORK",
 	}
 
 	StringSqliTypeMap = map[string]SqliType{
@@ -97,6 +99,7 @@ var (
 		"SQ_RETTYPE":    SQ_RETTYPE,
 		"SQ_AUTOFREE":   SQ_AUTOFREE,
 		"SQ_PROTOCOLS":  SQ_PROTOCOLS,
+		"SQ_CMMTWORK":   SQ_CMMTWORK,
 	}
 )
 
@@ -873,6 +876,22 @@ func (sq *SqliDone) Unpack(r io.Reader) error {
 	return unpacker.Error()
 }
 
+// SqliCmmtwork SQ_CMMTWORK 19
+type SqliCmmtwork struct {
+}
+
+func (*SqliCmmtwork) Command() uint16 {
+	return 19
+}
+
+func (*SqliCmmtwork) Pack() ([]byte, error) {
+	return []byte{0, 19}, nil
+}
+
+func (*SqliCmmtwork) Unpack(r io.Reader) error {
+	panic("implement me")
+}
+
 // SqliNDescribe SQ_NDESCRIBE 22
 type SqliNDescribe struct {
 }
@@ -1359,6 +1378,9 @@ func UnpackSqliCommand(reader io.ReadSeeker) (SqliCommand, error) {
 			reader.Seek(pos, io.SeekStart)
 			return nil, err
 		}
+		return command, nil
+	case 19:
+		command := &SqliCmmtwork{}
 		return command, nil
 	case SQ_NDESCRIBE:
 		command := &SqliNDescribe{}
