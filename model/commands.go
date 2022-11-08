@@ -32,6 +32,7 @@ const (
 	SQ_DONE                = 15
 	SQ_CMMTWORK            = 19
 	SQ_NDESCRIBE           = 22
+	SQ_BEGIN               = 35
 	SQ_DBOPEN              = 36
 	SQ_WANTDONE            = 49
 	SQ_COST                = 55
@@ -71,6 +72,7 @@ var (
 		SQ_AUTOFREE:   "SQ_AUTOFREE",
 		SQ_PROTOCOLS:  "SQ_PROTOCOLS",
 		SQ_CMMTWORK:   "SQ_CMMTWORK",
+		SQ_BEGIN:      "SQ_BEGIN",
 	}
 
 	StringSqliTypeMap = map[string]SqliType{
@@ -100,6 +102,7 @@ var (
 		"SQ_AUTOFREE":   SQ_AUTOFREE,
 		"SQ_PROTOCOLS":  SQ_PROTOCOLS,
 		"SQ_CMMTWORK":   SQ_CMMTWORK,
+		"SQ_BEGIN":      SQ_BEGIN,
 	}
 )
 
@@ -908,6 +911,22 @@ func (*SqliNDescribe) Unpack(r io.Reader) error {
 	return nil
 }
 
+// SqliBegin SQ_BEGIN 35
+type SqliBegin struct {
+}
+
+func (*SqliBegin) Command() uint16 {
+	return 35
+}
+
+func (*SqliBegin) Pack() ([]byte, error) {
+	return []byte{0, 35}, nil
+}
+
+func (*SqliBegin) Unpack(r io.Reader) error {
+	panic("implement me")
+}
+
 // SqliDBOpen SQ_DBOPEN 36
 type SqliDBOpen struct {
 	DBName string
@@ -1384,6 +1403,9 @@ func UnpackSqliCommand(reader io.ReadSeeker) (SqliCommand, error) {
 		return command, nil
 	case SQ_NDESCRIBE:
 		command := &SqliNDescribe{}
+		return command, nil
+	case 35:
+		command := &SqliBegin{}
 		return command, nil
 	case SQ_DBOPEN:
 		command := &SqliDBOpen{}
