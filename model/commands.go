@@ -43,6 +43,7 @@ const (
 	SQ_RETTYPE             = 100
 	SQ_AUTOFREE            = 108
 	SQ_CIDESCRIBE          = 124
+	SQ_IDESCRIBE           = 125
 	SQ_PROTOCOLS           = 126
 )
 
@@ -77,6 +78,7 @@ var (
 		SQ_BEGIN:      "SQ_BEGIN",
 		SQ_XACTSTAT:   "SQ_XACTSTAT",
 		SQ_CIDESCRIBE: "SQ_CIDESCRIBE",
+		SQ_IDESCRIBE:  "SQ_IDESCRIBE",
 	}
 
 	StringSqliTypeMap = map[string]SqliType{
@@ -109,6 +111,7 @@ var (
 		"SQ_BEGIN":      SQ_BEGIN,
 		"SQ_XACTSTAT":   SQ_XACTSTAT,
 		"SQ_CIDESCRIBE": SQ_CIDESCRIBE,
+		"SQ_IDESCRIBE":  SQ_IDESCRIBE,
 	}
 )
 
@@ -1301,6 +1304,65 @@ func (*SqliCIdescribe) Unpack(r io.Reader) error {
 	panic("implement me")
 }
 
+// SqliIdescribe SQ_IDESCEIBE
+type SqliIdescribe struct {
+	inputfields uint16
+	fields      []Sqlifields
+}
+
+func (sq *SqliIdescribe) Command() uint16 {
+	return 125
+}
+
+func (sq *SqliIdescribe) Pack() ([]byte, error) {
+	buffer := new(bytes.Buffer)
+	packer := binpacker.NewPacker(binary.BigEndian, buffer)
+	packer.PushUint16(sq.Command()).PushUint16(sq.inputfields).PushUint16(uint16(len(sq.fields)))
+	for _, c := range sq.fields {
+		packer.PushUint16(c.Type)
+		packer.PushUint32(c.ExtendID)
+		packer.PushUint16(c.OwnerNameLength)
+		packer.PushUint16(c.ExtendTypeNameLength)
+		packer.PushUint16(c.PassByReferenceFlag)
+		packer.PushUint16(c.alignment)
+		packer.PushUint32(c.SourceType)
+		packer.PushUint32(c.Length)
+	}
+	return buffer.Bytes(), packer.Error()
+}
+
+func (sq *SqliIdescribe) Unpack(r io.Reader) error {
+	unpacker := binpacker.NewUnpacker(binary.BigEndian, r)
+	var count uint16
+	unpacker.FetchUint16(&count)
+	unpacker.FetchUint16(&sq.inputfields)
+	sq.fields = make([]Sqlifields, 0, count)
+	for i := 0; i < int(count); i++ {
+		var c Sqlifields
+		unpacker.FetchUint16(&c.Type)
+		unpacker.FetchUint32(&c.ExtendID)
+		unpacker.FetchUint16(&c.OwnerNameLength)
+		unpacker.FetchUint16(&c.ExtendTypeNameLength)
+		unpacker.FetchUint16(&c.PassByReferenceFlag)
+		unpacker.FetchUint16(&c.alignment)
+		unpacker.FetchUint32(&c.SourceType)
+		unpacker.FetchUint32(&c.Length)
+		sq.fields = append(sq.fields, c)
+	}
+	return unpacker.Error()
+}
+
+type Sqlifields struct {
+	Type                 uint16
+	ExtendID             uint32
+	OwnerNameLength      uint16
+	ExtendTypeNameLength uint16
+	PassByReferenceFlag  uint16
+	alignment            uint16
+	SourceType           uint32
+	Length               uint32
+}
+
 // SqliProtocols SQ_PROTOCOLS 126
 type SqliProtocols struct {
 	Protocol []byte
@@ -1518,6 +1580,14 @@ func UnpackSqliCommand(reader io.ReadSeeker) (SqliCommand, error) {
 		return command, nil
 	case 124:
 		command := &SqliCIdescribe{}
+		return command, nil
+	case 125:
+		command := &SqliIdescribe{}
+		err = command.Unpack(reader)
+		if err != nil {
+			reader.Seek(pos, io.SeekStart)
+			return nil, err
+		}
 		return command, nil
 	case SQ_PROTOCOLS:
 		command := &SqliProtocols{}
