@@ -549,3 +549,19 @@ func TestSqliBegin_Pack_Unpack(t *testing.T) {
 	assert.NoError(t, err)
 	assert.EqualValues(t, pos, len(expect))
 }
+
+func TestSqliXActstat_Pack_Unpack(t *testing.T) {
+	xactxtat := &SqliXActstat{}
+	buf, err := xactxtat.Pack()
+	expect := []byte{0, 99, 0, 0, 0, 0, 0, 0}
+	assert.NoError(t, err)
+	assert.Equal(t, expect, buf)
+
+	buffer := bytes.NewReader(expect)
+	cmd, err := UnpackSqliCommand(buffer)
+	assert.NoError(t, err)
+	assert.Equal(t, xactxtat, cmd)
+	pos, err := buffer.Seek(0, io.SeekCurrent)
+	assert.NoError(t, err)
+	assert.EqualValues(t, pos, len(expect))
+}

@@ -39,6 +39,7 @@ const (
 	SQ_EXIT                = 56
 	SQ_INFO                = 81
 	SQ_INSERTDONE          = 94
+	SQ_XACTSTAT            = 99
 	SQ_RETTYPE             = 100
 	SQ_AUTOFREE            = 108
 	SQ_PROTOCOLS           = 126
@@ -73,6 +74,7 @@ var (
 		SQ_PROTOCOLS:  "SQ_PROTOCOLS",
 		SQ_CMMTWORK:   "SQ_CMMTWORK",
 		SQ_BEGIN:      "SQ_BEGIN",
+		SQ_XACTSTAT:   "SQ_XACTSTAT",
 	}
 
 	StringSqliTypeMap = map[string]SqliType{
@@ -103,6 +105,7 @@ var (
 		"SQ_PROTOCOLS":  SQ_PROTOCOLS,
 		"SQ_CMMTWORK":   SQ_CMMTWORK,
 		"SQ_BEGIN":      SQ_BEGIN,
+		"SQ_XACTSTAT":   SQ_XACTSTAT,
 	}
 )
 
@@ -1157,6 +1160,36 @@ func (env *InfoEnv) Unpack(r io.Reader) error {
 	return nil
 }
 
+// SqliXActstat SQ_XACTSTAT 99
+type SqliXActstat struct {
+	Event    int16
+	NewLevel int16
+	OldLevel int16
+}
+
+func (sq *SqliXActstat) Command() uint16 {
+	return 99
+}
+
+func (sq *SqliXActstat) Pack() ([]byte, error) {
+	buffer := new(bytes.Buffer)
+	packer := binpacker.NewPacker(binary.BigEndian, buffer)
+	packer.PushUint16(sq.Command()).
+		PushInt16(sq.Event).
+		PushInt16(sq.NewLevel).
+		PushInt16(sq.OldLevel)
+
+	return buffer.Bytes(), packer.Error()
+}
+
+func (sq *SqliXActstat) Unpack(r io.Reader) error {
+	unpacker := binpacker.NewUnpacker(binary.BigEndian, r)
+	unpacker.FetchInt16(&sq.Event).
+		FetchInt16(&sq.NewLevel).
+		FetchInt16(&sq.OldLevel)
+	return unpacker.Error()
+}
+
 // SqliRetType SQ_RETTYPE 100
 type SqliRetType struct {
 	Direction uint16
@@ -1439,6 +1472,14 @@ func UnpackSqliCommand(reader io.ReadSeeker) (SqliCommand, error) {
 		return command, nil
 	case 94:
 		command := &SqliInsertDone{}
+		err = command.Unpack(reader)
+		if err != nil {
+			reader.Seek(pos, io.SeekStart)
+			return nil, err
+		}
+		return command, nil
+	case 99:
+		command := &SqliXActstat{}
 		err = command.Unpack(reader)
 		if err != nil {
 			reader.Seek(pos, io.SeekStart)
