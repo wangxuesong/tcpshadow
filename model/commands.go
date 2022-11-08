@@ -42,6 +42,7 @@ const (
 	SQ_XACTSTAT            = 99
 	SQ_RETTYPE             = 100
 	SQ_AUTOFREE            = 108
+	SQ_CIDESCRIBE          = 124
 	SQ_PROTOCOLS           = 126
 )
 
@@ -75,6 +76,7 @@ var (
 		SQ_CMMTWORK:   "SQ_CMMTWORK",
 		SQ_BEGIN:      "SQ_BEGIN",
 		SQ_XACTSTAT:   "SQ_XACTSTAT",
+		SQ_CIDESCRIBE: "SQ_CIDESCRIBE",
 	}
 
 	StringSqliTypeMap = map[string]SqliType{
@@ -106,6 +108,7 @@ var (
 		"SQ_CMMTWORK":   SQ_CMMTWORK,
 		"SQ_BEGIN":      SQ_BEGIN,
 		"SQ_XACTSTAT":   SQ_XACTSTAT,
+		"SQ_CIDESCRIBE": SQ_CIDESCRIBE,
 	}
 )
 
@@ -1282,6 +1285,22 @@ func (*SqliAutoFree) Unpack(r io.Reader) error {
 	panic("implement me")
 }
 
+// SqliCIdescribe SQ_CIDESCEIBE
+type SqliCIdescribe struct {
+}
+
+func (*SqliCIdescribe) Command() uint16 {
+	return 124
+}
+
+func (*SqliCIdescribe) Pack() ([]byte, error) {
+	return []byte{0, 124}, nil
+}
+
+func (*SqliCIdescribe) Unpack(r io.Reader) error {
+	panic("implement me")
+}
+
 // SqliProtocols SQ_PROTOCOLS 126
 type SqliProtocols struct {
 	Protocol []byte
@@ -1496,6 +1515,9 @@ func UnpackSqliCommand(reader io.ReadSeeker) (SqliCommand, error) {
 		return command, nil
 	case 108:
 		command := &SqliAutoFree{}
+		return command, nil
+	case 124:
+		command := &SqliCIdescribe{}
 		return command, nil
 	case SQ_PROTOCOLS:
 		command := &SqliProtocols{}
