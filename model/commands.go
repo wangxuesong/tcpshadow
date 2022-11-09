@@ -313,14 +313,19 @@ func (sq *SqliBind) Pack() ([]byte, error) {
 	size := int16(len(sq.Columns))
 	packer.PushInt16(size)
 
-	for _, c := range sq.Columns {
-		var precisionLow, precisionHigh uint16
-		precisionHigh = uint16(c.Precision >> 16)
-		precisionLow = uint16(c.Precision)
-		packer.PushInt16(c.Type).
-			PushInt16(c.Indicator).
-			PushUint16(precisionLow).PushUint16(precisionHigh).
-			PushUint16(c.Data)
+	for _, cc := range sq.Columns {
+		switch cc.ColumnType() {
+		case 2:
+			var c BindColumnInt
+			c = cc.(BindColumnInt)
+			var precisionLow, precisionHigh uint16
+			precisionHigh = uint16(c.Precision >> 16)
+			precisionLow = uint16(c.Precision)
+			packer.PushInt16(c.Type).
+				PushInt16(c.Indicator).
+				PushUint16(precisionLow).PushUint16(precisionHigh).
+				PushUint16(c.Data)
+		}
 	}
 
 	return buffer.Bytes(), packer.Error()
@@ -332,23 +337,56 @@ func (sq *SqliBind) Unpack(r io.Reader) error {
 	unpacker.FetchInt16(&size)
 	sq.Columns = make([]BindColumn, 0, size)
 	for i := 0; i < int(size); i++ {
-		var col BindColumn
-		var precsionLow, precsionHigh uint16
-		unpacker.FetchInt16(&col.Type).
-			FetchInt16(&col.Indicator).
-			FetchUint16(&precsionLow).FetchUint16(&precsionHigh).
-			FetchUint16(&col.Data)
-		col.Precision = uint32(precsionHigh)<<16 + uint32(precsionLow)
-		sq.Columns = append(sq.Columns, col)
+		var colType int16
+		unpacker.FetchInt16(&colType)
+		switch colType {
+		case 0:
+			col := BindColumnChar{Type: colType}
+			var precsionLow uint16
+			unpacker.FetchInt16(&col.Indicator).
+				FetchUint16(&precsionLow) //.FetchUint16(&precsionHigh)
+			var count uint16
+			unpacker.FetchUint16(&count).
+				FetchString(uint64(count), &col.Data)
+			col.Precision = uint32(precsionLow)
+			sq.Columns = append(sq.Columns, col)
+		case 2:
+			col := BindColumnInt{Type: colType}
+			var precsionLow, precsionHigh uint16
+			unpacker.FetchInt16(&col.Indicator).
+				FetchUint16(&precsionLow).FetchUint16(&precsionHigh).
+				FetchUint16(&col.Data)
+			col.Precision = uint32(precsionHigh)<<16 + uint32(precsionLow)
+			sq.Columns = append(sq.Columns, col)
+		}
 	}
 	return unpacker.Error()
 }
 
-type BindColumn struct {
+type BindColumn interface {
+	ColumnType() int16
+}
+
+type BindColumnChar struct {
+	Type      int16
+	Indicator int16
+	Precision uint32
+	Data      string
+}
+
+func (c BindColumnChar) ColumnType() int16 {
+	return 0
+}
+
+type BindColumnInt struct {
 	Type      int16
 	Indicator int16
 	Precision uint32
 	Data      uint16
+}
+
+func (c BindColumnInt) ColumnType() int16 {
+	return 2
 }
 
 // SqliOpen SQ_OPEN 6

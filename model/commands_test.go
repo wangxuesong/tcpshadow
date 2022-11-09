@@ -146,7 +146,7 @@ func TestSqliCost_Pack_Unpack(t *testing.T) {
 }
 
 func TestSqliTransmission_Pack_Unpack(t *testing.T) {
-	expect := []byte{0, 8, 0, 2, 0, 0, 0, 0, 0, 0, 0, 55, 0, 2, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 2, 0, 0, 0, 4, 0, 13, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 50, 97, 0, 98, 0, 0, 15, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 55, 0, 0, 0, 1, 0, 0, 0, 1, 0, 12}
+	expect := []byte{0, 8, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 55, 0, 2, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 2, 0, 0, 0, 4, 0, 13, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 50, 97, 0, 98, 0, 0, 15, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 55, 0, 0, 0, 1, 0, 0, 0, 1, 0, 12}
 	size := len(expect)
 	trans, err := NewDescribeTransmission()
 	assert.NoError(t, err)
@@ -486,7 +486,7 @@ func TestSqliErr_Pack_Unpack(t *testing.T) {
 
 func TestSqliBind_Pack_Unpack(t *testing.T) {
 	sqliBind := &SqliBind{}
-	col := BindColumn{Type: 2, Indicator: 0, Precision: 2560, Data: 11}
+	col := BindColumnInt{Type: 2, Indicator: 0, Precision: 2560, Data: 11}
 	sqliBind.Columns = append(sqliBind.Columns, col)
 	buf, err := sqliBind.Pack()
 	expect := []byte{0, 5, 0, 1, 0, 2, 0, 0, 10, 0, 0, 0, 0, 11}
@@ -498,6 +498,22 @@ func TestSqliBind_Pack_Unpack(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, sqliBind, cmd)
 	pos, err := buffer.Seek(0, io.SeekCurrent)
+	assert.NoError(t, err)
+	assert.EqualValues(t, pos, len(expect))
+
+	expect = []byte{0, 5, 0, 1, 0, 0, 0, 0, 0, 0, 0, 8, 122, 104, 97, 110, 103, 115, 97, 110}
+	sqliBind1 := &SqliBind{}
+	col1 := BindColumnChar{Type: 0, Indicator: 0, Precision: 0, Data: "zhangsan"}
+	sqliBind1.Columns = append(sqliBind1.Columns, col1)
+	//buf, err = sqliBind1.Pack()
+	//assert.NoError(t, err)
+	//assert.Equal(t, expect, buf)
+
+	buffer = bytes.NewReader(expect)
+	cmd, err = UnpackSqliCommand(buffer)
+	assert.NoError(t, err)
+	assert.Equal(t, sqliBind1, cmd)
+	pos, err = buffer.Seek(0, io.SeekCurrent)
 	assert.NoError(t, err)
 	assert.EqualValues(t, pos, len(expect))
 }
