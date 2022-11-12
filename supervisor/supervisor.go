@@ -16,6 +16,7 @@ type (
 		listenChan chan services.ListenChannel
 		wg         sync.WaitGroup
 		proxies    map[string]*services.ProxyService
+		output     *services.OutputService
 	}
 
 	Config struct {
@@ -51,6 +52,10 @@ func (s *Supervisor) Close(wg *sync.WaitGroup) {
 		proxy.Close(wg)
 	}
 
+	// 关闭 output
+	wg.Add(1)
+	s.output.Close(wg)
+
 	// 关闭 Supervisor
 	close(s.done)
 	s.wg.Wait()
@@ -72,6 +77,15 @@ func (s *Supervisor) run() {
 	s.wg.Add(1)
 	go func() {
 		defer s.wg.Done()
+		index := 0
+		monitor := make(chan *services.Context)
+		config := services.OutputConfig{
+			Monitor:  monitor,
+			Outputs:  []services.OutputType{services.Console, services.File},
+			Filename: s.config.OutputFile,
+		}
+		s.output = services.NewOutputService(config)
+		go s.output.Run()
 		for {
 			select {
 			case <-s.done:
@@ -83,8 +97,10 @@ func (s *Supervisor) run() {
 					Front:         conn.Conn(),
 					ServerAddress: s.config.ServerAddress,
 					ProtocolType:  s.config.ProtocolType,
+					Monitor:       monitor,
 				}
-				s.proxies[client] = services.NewProxyService(config)
+				s.proxies[client] = services.NewProxyService(config, index)
+				index += 1
 				err := s.proxies[client].Run()
 				if err != nil {
 					log.Println(err)

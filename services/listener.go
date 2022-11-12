@@ -66,7 +66,6 @@ func (l *Listener) Run() error {
 				}
 				log.Println(err)
 			}
-			log.Println(conn.RemoteAddr(), "connected")
 			l.listenChan <- &listenChannel{address: l.address, conn: conn}
 		}
 	}()
