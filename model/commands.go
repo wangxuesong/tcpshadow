@@ -30,15 +30,20 @@ const (
 	SQ_ERR                 = 13
 	SQ_TUPLE               = 14
 	SQ_DONE                = 15
+	SQ_CMMTWORK            = 19
 	SQ_NDESCRIBE           = 22
+	SQ_BEGIN               = 35
 	SQ_DBOPEN              = 36
 	SQ_WANTDONE            = 49
 	SQ_COST                = 55
 	SQ_EXIT                = 56
 	SQ_INFO                = 81
 	SQ_INSERTDONE          = 94
+	SQ_XACTSTAT            = 99
 	SQ_RETTYPE             = 100
 	SQ_AUTOFREE            = 108
+	SQ_CIDESCRIBE          = 124
+	SQ_IDESCRIBE           = 125
 	SQ_PROTOCOLS           = 126
 )
 
@@ -69,6 +74,11 @@ var (
 		SQ_RETTYPE:    "SQ_RETTYPE",
 		SQ_AUTOFREE:   "SQ_AUTOFREE",
 		SQ_PROTOCOLS:  "SQ_PROTOCOLS",
+		SQ_CMMTWORK:   "SQ_CMMTWORK",
+		SQ_BEGIN:      "SQ_BEGIN",
+		SQ_XACTSTAT:   "SQ_XACTSTAT",
+		SQ_CIDESCRIBE: "SQ_CIDESCRIBE",
+		SQ_IDESCRIBE:  "SQ_IDESCRIBE",
 	}
 
 	StringSqliTypeMap = map[string]SqliType{
@@ -97,6 +107,11 @@ var (
 		"SQ_RETTYPE":    SQ_RETTYPE,
 		"SQ_AUTOFREE":   SQ_AUTOFREE,
 		"SQ_PROTOCOLS":  SQ_PROTOCOLS,
+		"SQ_CMMTWORK":   SQ_CMMTWORK,
+		"SQ_BEGIN":      SQ_BEGIN,
+		"SQ_XACTSTAT":   SQ_XACTSTAT,
+		"SQ_CIDESCRIBE": SQ_CIDESCRIBE,
+		"SQ_IDESCRIBE":  SQ_IDESCRIBE,
 	}
 )
 
@@ -873,6 +888,22 @@ func (sq *SqliDone) Unpack(r io.Reader) error {
 	return unpacker.Error()
 }
 
+// SqliCmmtwork SQ_CMMTWORK 19
+type SqliCmmtwork struct {
+}
+
+func (*SqliCmmtwork) Command() uint16 {
+	return 19
+}
+
+func (*SqliCmmtwork) Pack() ([]byte, error) {
+	return []byte{0, 19}, nil
+}
+
+func (*SqliCmmtwork) Unpack(r io.Reader) error {
+	panic("implement me")
+}
+
 // SqliNDescribe SQ_NDESCRIBE 22
 type SqliNDescribe struct {
 }
@@ -887,6 +918,22 @@ func (*SqliNDescribe) Pack() ([]byte, error) {
 
 func (*SqliNDescribe) Unpack(r io.Reader) error {
 	return nil
+}
+
+// SqliBegin SQ_BEGIN 35
+type SqliBegin struct {
+}
+
+func (*SqliBegin) Command() uint16 {
+	return 35
+}
+
+func (*SqliBegin) Pack() ([]byte, error) {
+	return []byte{0, 35}, nil
+}
+
+func (*SqliBegin) Unpack(r io.Reader) error {
+	panic("implement me")
 }
 
 // SqliDBOpen SQ_DBOPEN 36
@@ -1119,6 +1166,36 @@ func (env *InfoEnv) Unpack(r io.Reader) error {
 	return nil
 }
 
+// SqliXActstat SQ_XACTSTAT 99
+type SqliXActstat struct {
+	Event    int16
+	NewLevel int16
+	OldLevel int16
+}
+
+func (sq *SqliXActstat) Command() uint16 {
+	return 99
+}
+
+func (sq *SqliXActstat) Pack() ([]byte, error) {
+	buffer := new(bytes.Buffer)
+	packer := binpacker.NewPacker(binary.BigEndian, buffer)
+	packer.PushUint16(sq.Command()).
+		PushInt16(sq.Event).
+		PushInt16(sq.NewLevel).
+		PushInt16(sq.OldLevel)
+
+	return buffer.Bytes(), packer.Error()
+}
+
+func (sq *SqliXActstat) Unpack(r io.Reader) error {
+	unpacker := binpacker.NewUnpacker(binary.BigEndian, r)
+	unpacker.FetchInt16(&sq.Event).
+		FetchInt16(&sq.NewLevel).
+		FetchInt16(&sq.OldLevel)
+	return unpacker.Error()
+}
+
 // SqliRetType SQ_RETTYPE 100
 type SqliRetType struct {
 	Direction uint16
@@ -1209,6 +1286,81 @@ func (*SqliAutoFree) Pack() ([]byte, error) {
 
 func (*SqliAutoFree) Unpack(r io.Reader) error {
 	panic("implement me")
+}
+
+// SqliCIdescribe SQ_CIDESCEIBE
+type SqliCIdescribe struct {
+}
+
+func (*SqliCIdescribe) Command() uint16 {
+	return 124
+}
+
+func (*SqliCIdescribe) Pack() ([]byte, error) {
+	return []byte{0, 124}, nil
+}
+
+func (*SqliCIdescribe) Unpack(r io.Reader) error {
+	panic("implement me")
+}
+
+// SqliIdescribe SQ_IDESCEIBE
+type SqliIdescribe struct {
+	inputfields uint16
+	fields      []Sqlifields
+}
+
+func (sq *SqliIdescribe) Command() uint16 {
+	return 125
+}
+
+func (sq *SqliIdescribe) Pack() ([]byte, error) {
+	buffer := new(bytes.Buffer)
+	packer := binpacker.NewPacker(binary.BigEndian, buffer)
+	packer.PushUint16(sq.Command()).PushUint16(sq.inputfields).PushUint16(uint16(len(sq.fields)))
+	for _, c := range sq.fields {
+		packer.PushUint16(c.Type)
+		packer.PushUint32(c.ExtendID)
+		packer.PushUint16(c.OwnerNameLength)
+		packer.PushUint16(c.ExtendTypeNameLength)
+		packer.PushUint16(c.PassByReferenceFlag)
+		packer.PushUint16(c.alignment)
+		packer.PushUint32(c.SourceType)
+		packer.PushUint32(c.Length)
+	}
+	return buffer.Bytes(), packer.Error()
+}
+
+func (sq *SqliIdescribe) Unpack(r io.Reader) error {
+	unpacker := binpacker.NewUnpacker(binary.BigEndian, r)
+	var count uint16
+	unpacker.FetchUint16(&count)
+	unpacker.FetchUint16(&sq.inputfields)
+	sq.fields = make([]Sqlifields, 0, count)
+	for i := 0; i < int(count); i++ {
+		var c Sqlifields
+		unpacker.FetchUint16(&c.Type)
+		unpacker.FetchUint32(&c.ExtendID)
+		unpacker.FetchUint16(&c.OwnerNameLength)
+		unpacker.FetchUint16(&c.ExtendTypeNameLength)
+		unpacker.FetchUint16(&c.PassByReferenceFlag)
+		unpacker.FetchUint16(&c.alignment)
+		unpacker.FetchUint32(&c.SourceType)
+		unpacker.FetchUint32(&c.Length)
+		sq.fields = append(sq.fields, c)
+	}
+	return unpacker.Error()
+}
+
+type Sqlifields struct {
+	Type                 uint16
+	ExtendID             uint32
+	OwnerNameLength      uint16
+	ExtendTypeNameLength uint16
+	PassByReferenceFlag  uint16
+	alignment            uint16
+	SourceType           uint32
+	Length               uint32
 }
 
 // SqliProtocols SQ_PROTOCOLS 126
@@ -1360,8 +1512,14 @@ func UnpackSqliCommand(reader io.ReadSeeker) (SqliCommand, error) {
 			return nil, err
 		}
 		return command, nil
+	case 19:
+		command := &SqliCmmtwork{}
+		return command, nil
 	case SQ_NDESCRIBE:
 		command := &SqliNDescribe{}
+		return command, nil
+	case 35:
+		command := &SqliBegin{}
 		return command, nil
 	case SQ_DBOPEN:
 		command := &SqliDBOpen{}
@@ -1401,6 +1559,14 @@ func UnpackSqliCommand(reader io.ReadSeeker) (SqliCommand, error) {
 			return nil, err
 		}
 		return command, nil
+	case 99:
+		command := &SqliXActstat{}
+		err = command.Unpack(reader)
+		if err != nil {
+			reader.Seek(pos, io.SeekStart)
+			return nil, err
+		}
+		return command, nil
 	case 100:
 		command := &SqliRetType{}
 		err = command.Unpack(reader)
@@ -1411,6 +1577,17 @@ func UnpackSqliCommand(reader io.ReadSeeker) (SqliCommand, error) {
 		return command, nil
 	case 108:
 		command := &SqliAutoFree{}
+		return command, nil
+	case 124:
+		command := &SqliCIdescribe{}
+		return command, nil
+	case 125:
+		command := &SqliIdescribe{}
+		err = command.Unpack(reader)
+		if err != nil {
+			reader.Seek(pos, io.SeekStart)
+			return nil, err
+		}
 		return command, nil
 	case SQ_PROTOCOLS:
 		command := &SqliProtocols{}

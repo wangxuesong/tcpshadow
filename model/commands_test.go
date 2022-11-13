@@ -146,7 +146,7 @@ func TestSqliCost_Pack_Unpack(t *testing.T) {
 }
 
 func TestSqliTransmission_Pack_Unpack(t *testing.T) {
-	expect := []byte{0, 8, 0, 2, 0, 0, 0, 0, 0, 0, 0, 55, 0, 2, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 2, 0, 0, 0, 4, 0, 13, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 50, 97, 0, 98, 0, 0, 15, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 55, 0, 0, 0, 1, 0, 0, 0, 1, 0, 12}
+	expect := []byte{0, 8, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 55, 0, 2, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 2, 0, 0, 0, 4, 0, 13, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 50, 97, 0, 98, 0, 0, 15, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 55, 0, 0, 0, 1, 0, 0, 0, 1, 0, 12}
 	size := len(expect)
 	trans, err := NewDescribeTransmission()
 	assert.NoError(t, err)
@@ -513,6 +513,87 @@ func TestSqliAutoFree_Pack_Unpack(t *testing.T) {
 	cmd, err := UnpackSqliCommand(buffer)
 	assert.NoError(t, err)
 	assert.Equal(t, sqliAutoFree, cmd)
+	pos, err := buffer.Seek(0, io.SeekCurrent)
+	assert.NoError(t, err)
+	assert.EqualValues(t, pos, len(expect))
+}
+
+func TestSqliCmmtwork_Pack_Unpack(t *testing.T) {
+	Cmmtwork := &SqliCmmtwork{}
+	buf, err := Cmmtwork.Pack()
+	expect := []byte{0, 19}
+	assert.NoError(t, err)
+	assert.Equal(t, expect, buf)
+
+	buffer := bytes.NewReader(expect)
+	cmd, err := UnpackSqliCommand(buffer)
+	assert.NoError(t, err)
+	assert.Equal(t, Cmmtwork, cmd)
+	pos, err := buffer.Seek(0, io.SeekCurrent)
+	assert.NoError(t, err)
+	assert.EqualValues(t, pos, len(expect))
+}
+
+func TestSqliBegin_Pack_Unpack(t *testing.T) {
+	begin := &SqliBegin{}
+	buf, err := begin.Pack()
+	expect := []byte{0, 35}
+	assert.NoError(t, err)
+	assert.Equal(t, expect, buf)
+
+	buffer := bytes.NewReader(expect)
+	cmd, err := UnpackSqliCommand(buffer)
+	assert.NoError(t, err)
+	assert.Equal(t, begin, cmd)
+	pos, err := buffer.Seek(0, io.SeekCurrent)
+	assert.NoError(t, err)
+	assert.EqualValues(t, pos, len(expect))
+}
+
+func TestSqliXActstat_Pack_Unpack(t *testing.T) {
+	xactxtat := &SqliXActstat{}
+	buf, err := xactxtat.Pack()
+	expect := []byte{0, 99, 0, 0, 0, 0, 0, 0}
+	assert.NoError(t, err)
+	assert.Equal(t, expect, buf)
+
+	buffer := bytes.NewReader(expect)
+	cmd, err := UnpackSqliCommand(buffer)
+	assert.NoError(t, err)
+	assert.Equal(t, xactxtat, cmd)
+	pos, err := buffer.Seek(0, io.SeekCurrent)
+	assert.NoError(t, err)
+	assert.EqualValues(t, pos, len(expect))
+}
+
+func TestSqliCIdescribe_Pack_Unpack(t *testing.T) {
+	cidescribe := &SqliCIdescribe{}
+	buf, err := cidescribe.Pack()
+	expect := []byte{0, 124}
+	assert.NoError(t, err)
+	assert.Equal(t, expect, buf)
+
+	buffer := bytes.NewReader(expect)
+	cmd, err := UnpackSqliCommand(buffer)
+	assert.NoError(t, err)
+	assert.Equal(t, cidescribe, cmd)
+	pos, err := buffer.Seek(0, io.SeekCurrent)
+	assert.NoError(t, err)
+	assert.EqualValues(t, pos, len(expect))
+}
+
+func TestSqliIdescribe_Pack_Unpack(t *testing.T) {
+	idescribe := &SqliIdescribe{fields: make([]Sqlifields, 0)}
+	idescribe.fields = append(idescribe.fields)
+	buf, err := idescribe.Pack()
+	expect := []byte{0, 125, 0, 0, 0, 0}
+	assert.NoError(t, err)
+	assert.Equal(t, expect, buf)
+
+	buffer := bytes.NewReader(expect)
+	cmd, err := UnpackSqliCommand(buffer)
+	assert.NoError(t, err)
+	assert.Equal(t, idescribe, cmd)
 	pos, err := buffer.Seek(0, io.SeekCurrent)
 	assert.NoError(t, err)
 	assert.EqualValues(t, pos, len(expect))
