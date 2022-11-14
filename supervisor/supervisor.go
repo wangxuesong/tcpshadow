@@ -80,9 +80,11 @@ func (s *Supervisor) run() {
 		index := 0
 		monitor := make(chan *services.Context)
 		config := services.OutputConfig{
-			Monitor:  monitor,
-			Outputs:  []services.OutputType{services.Console, services.File},
-			Filename: s.config.OutputFile,
+			Monitor:        monitor,
+			Outputs:        []services.OutputType{services.Console, services.File},
+			Filename:       s.config.OutputFile,
+			ProtocolType:   s.config.ProtocolType,
+			IsPrintPackage: s.config.IsPrintPackage,
 		}
 		s.output = services.NewOutputService(config)
 		go s.output.Run()

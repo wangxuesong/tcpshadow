@@ -3,12 +3,14 @@ package services
 import (
 	"bytes"
 	"encoding/binary"
+	"encoding/json"
 	"fmt"
 	"log"
 	"os"
 	"sync"
 
 	"github.com/davecgh/go-spew/spew"
+	"github.com/jackc/pgproto3"
 	"github.com/wangxuesong/tcpshadow/model"
 )
 
@@ -40,9 +42,11 @@ type (
 	}
 
 	OutputConfig struct {
-		Monitor  chan *Context
-		Outputs  []OutputType
-		Filename string
+		Monitor        chan *Context
+		Outputs        []OutputType
+		Filename       string
+		ProtocolType   string
+		IsPrintPackage bool
 	}
 
 	Output interface {
@@ -51,6 +55,19 @@ type (
 	}
 
 	ConsoleOutput struct {
+	}
+
+	sqliConsoleOutput struct {
+		ConsoleOutput
+		counts map[int]int
+	}
+
+	pgConsoleOutput struct {
+		ConsoleOutput
+		counts map[int]int
+
+		serverParser *model.PgServerParser
+		clientParser *model.PgClientParser
 	}
 
 	FileOutput struct {
@@ -69,7 +86,24 @@ func NewOutputService(config OutputConfig) *OutputService {
 	for _, o := range config.Outputs {
 		switch o {
 		case Console:
-			s.outputs = append(s.outputs, &ConsoleOutput{})
+			var output Output = &ConsoleOutput{}
+			if config.IsPrintPackage {
+				switch config.ProtocolType {
+				case "sqli":
+					output = &sqliConsoleOutput{
+						counts: make(map[int]int),
+					}
+					break
+				case "pg":
+					output = &pgConsoleOutput{
+						counts:       make(map[int]int),
+						serverParser: model.NewPgServerParser(),
+						clientParser: model.NewPgClientParser(),
+					}
+					break
+				}
+			}
+			s.outputs = append(s.outputs, output)
 		case File:
 			s.outputs = append(s.outputs, newFileOutput(config.Filename))
 		}
@@ -128,17 +162,126 @@ func (o *ConsoleOutput) Write(ctx *Context) error {
 	return nil
 }
 
+func (o *ConsoleOutput) Close(wg *sync.WaitGroup) {
+	defer wg.Done()
+}
+
+func (o *ConsoleOutput) sDump(a interface{}) string {
+	return o.printConfig().Sdump(a)
+}
+
 func (o *ConsoleOutput) dump(color string, ctx *Context) {
+	consolePrint(color, fmt.Sprintf("[%d] %s", ctx.SessionId, o.sDump(*ctx.Data)))
+}
+
+func (o *ConsoleOutput) printConfig() *spew.ConfigState {
+	scs := spew.NewDefaultConfig()
+	scs.Indent = "    "
+	return scs
+}
+
+func (o *sqliConsoleOutput) Write(ctx *Context) error {
+	if _, ok := o.counts[ctx.SessionId]; !ok {
+		o.counts[ctx.SessionId] = 0
+	}
+	color := RED
+	if ctx.Data.Forward == model.ServerToClient {
+		color = YELLOW
+	} else {
+		color = GREEN
+	}
+
+	if o.counts[ctx.SessionId] < 2 {
+		o.dump(color, ctx)
+	} else {
+		reader := bytes.NewReader(ctx.Data.Buffer)
+		cmds, err := model.UnpackSqliTransmission(reader)
+		if err != nil {
+			o.dump(RED, ctx)
+		} else {
+			printPackage(color, ctx, o.sDump(cmds))
+		}
+
+	}
+
+	o.counts[ctx.SessionId]++
+	return nil
+}
+
+func (o *pgConsoleOutput) Write(ctx *Context) error {
+	if _, ok := o.counts[ctx.SessionId]; !ok {
+		o.counts[ctx.SessionId] = 0
+	}
+	color := RED
+	if ctx.Data.Forward == model.ServerToClient {
+		color = YELLOW
+	} else {
+		color = GREEN
+	}
+
+	if o.counts[ctx.SessionId] == 0 {
+		backend, err := pgproto3.NewBackend(
+			pgproto3.NewChunkReader(bytes.NewReader(ctx.Data.Buffer)),
+			nil)
+		msg, err := backend.ReceiveStartupMessage()
+		if err != nil {
+			o.dump(color, ctx)
+		} else {
+			buf, err := json.MarshalIndent(msg, "", "  ")
+			if err != nil {
+				o.dump(color, ctx)
+			} else {
+				printPackage(color, ctx, string(buf))
+			}
+		}
+	} else {
+		if ctx.Data.Forward == model.ServerToClient {
+			o.serverParser.Append(ctx.Data.Buffer)
+			msg, err := o.serverParser.ParseMessage()
+			if err != nil {
+				o.dump(color, ctx)
+			} else {
+				for _, i := range msg {
+					buf, err := json.MarshalIndent(i, "", "  ")
+					if err != nil {
+						o.dump(color, ctx)
+					} else {
+						printPackage(color, ctx, string(buf))
+					}
+				}
+			}
+		} else {
+			o.clientParser.Append(ctx.Data.Buffer)
+			msg, err := o.clientParser.ParseMessage()
+			if err != nil {
+				o.dump(color, ctx)
+			} else {
+				for _, i := range msg {
+					buf, err := json.MarshalIndent(i, "", "  ")
+					if err != nil {
+						o.dump(color, ctx)
+					} else {
+						printPackage(color, ctx, string(buf))
+					}
+				}
+			}
+		}
+	}
+
+	o.counts[ctx.SessionId]++
+	return nil
+}
+
+func printPackage(color string, ctx *Context, str string) {
+	consolePrint(color, fmt.Sprintf("[%d] %s %s", ctx.SessionId, ctx.Data.Forward, str))
+}
+
+func consolePrint(color string, str string) {
 	scs := spew.NewDefaultConfig()
 	scs.Indent = "    "
 	_, _ = scs.Print(color)
-	str := fmt.Sprintf("[%d] %s", ctx.SessionId, scs.Sdump(*ctx.Data))
 	_, _ = scs.Print(str)
 	_, _ = scs.Println(CLEAR)
-}
-
-func (o *ConsoleOutput) Close(wg *sync.WaitGroup) {
-	defer wg.Done()
 }
 
 func (o *FileOutput) Write(ctx *Context) error {
