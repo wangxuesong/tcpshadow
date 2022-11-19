@@ -20,10 +20,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/davecgh/go-spew/spew"
-	"github.com/jackc/pgproto3"
-	"github.com/spf13/cobra"
-	"github.com/wangxuesong/tcpshadow/model"
 	"io"
 	"log"
 	"net"
@@ -32,19 +28,58 @@ import (
 	"sync"
 	"syscall"
 	"time"
+
+	"github.com/davecgh/go-spew/spew"
+	"github.com/jackc/pgproto3"
+	"github.com/spf13/cobra"
+
+	"github.com/wangxuesong/tcpshadow/model"
+	"github.com/wangxuesong/tcpshadow/supervisor"
 )
 
+type captureCommand struct {
+	command *cobra.Command
+	Config  *supervisor.Config
+}
+
+var config = supervisor.DefaultConfig()
+
 // captureCmd represents the capture command
-var captureCmd = &cobra.Command{
-	Use:          "capture",
-	Short:        "Capture tcp data",
-	Long:         `Capture tcp data`,
-	SilenceUsage: true,
-	RunE: func(cmd *cobra.Command, args []string) error {
-		//fmt.Println("capture called")
-		capture()
-		return nil
+var captureCmd = &captureCommand{
+	Config: config,
+	command: &cobra.Command{
+		Use:          "capture",
+		Short:        "Capture tcp data",
+		Long:         `Capture tcp data`,
+		SilenceUsage: true,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			//fmt.Println("capture called")
+			return runCapture(config)
+			capture()
+			return nil
+		},
 	},
+}
+
+func runCapture(config *supervisor.Config) error {
+	err := config.Validate()
+	if err != nil {
+		return err
+	}
+
+	super := supervisor.NewSupervisor(config)
+	go super.Serve()
+
+	ch := make(chan os.Signal)
+	signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM)
+	log.Println(<-ch)
+
+	wg := &sync.WaitGroup{}
+	wg.Add(1)
+	super.Close(wg)
+	wg.Wait()
+
+	return nil
 }
 
 var (
@@ -56,20 +91,21 @@ var (
 )
 
 func init() {
-	rootCmd.AddCommand(captureCmd)
+	rootCmd.AddCommand(captureCmd.command)
 
 	// Here you will define your flags and configuration settings.
 
 	// Cobra supports Persistent Flags which will work for this command
 	// and all subcommands, e.g.:
-	captureCmd.Flags().StringVarP(&serverAddress, "server", "s", "", "server address")
-	_ = captureCmd.MarkFlagRequired("server")
-	captureCmd.Flags().StringVarP(&listenAddress, "listen", "l", "", "listen address")
-	_ = captureCmd.MarkFlagRequired("listen")
-	captureCmd.Flags().StringVarP(&outputFile, "output", "o", "", "output file")
-	_ = captureCmd.MarkFlagRequired("output")
-	captureCmd.Flags().BoolVarP(&printPackage, "printPackage", "p", false, "printPackage package")
-	captureCmd.Flags().StringVarP(&protocolType, "type", "t", "sqli", "protocol type")
+	config := captureCmd.Config
+	captureCmd.command.Flags().StringVarP(&config.ServerAddress, "server", "s", "", "server address")
+	_ = captureCmd.command.MarkFlagRequired("server")
+	captureCmd.command.Flags().StringVarP(&config.ListenAddress, "listen", "l", "", "listen address")
+	_ = captureCmd.command.MarkFlagRequired("listen")
+	captureCmd.command.Flags().StringVarP(&config.OutputFile, "output", "o", "", "output file")
+	_ = captureCmd.command.MarkFlagRequired("output")
+	captureCmd.command.Flags().BoolVarP(&config.IsPrintPackage, "printPackage", "p", false, "printPackage package")
+	captureCmd.command.Flags().StringVarP(&config.ProtocolType, "type", "t", "sqli", "protocol type")
 
 	// Cobra supports local flags which will only run when this command
 	// is called directly, e.g.:
@@ -265,6 +301,8 @@ func (s *Service) Serve(listener *net.TCPListener) {
 }
 
 func capture() {
+	serverAddress = "127.0.0.1:9088"
+	listenAddress = "127.0.0.1:11088"
 	log.Println("Start....")
 	clientConn, err := net.ResolveTCPAddr("tcp4", listenAddress)
 	if nil != err {
