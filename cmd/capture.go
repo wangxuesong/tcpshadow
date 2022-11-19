@@ -34,7 +34,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/wangxuesong/tcpshadow/model"
-	"github.com/wangxuesong/tcpshadow/supervisor"
+	"github.com/wangxuesong/tcpshadow/pkg/supervisor"
 )
 
 type captureCommand struct {

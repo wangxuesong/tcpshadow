@@ -4,7 +4,7 @@ import (
 	"log"
 	"sync"
 
-	"github.com/wangxuesong/tcpshadow/services"
+	"github.com/wangxuesong/tcpshadow/pkg/services"
 )
 
 type (

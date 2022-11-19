@@ -1,12 +1,13 @@
 package services
 
 import (
-	"github.com/wangxuesong/tcpshadow/model"
 	"io"
 	"log"
 	"net"
 	"sync"
 	"time"
+
+	"github.com/wangxuesong/tcpshadow/model"
 )
 
 type (
