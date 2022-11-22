@@ -125,7 +125,7 @@ func newFileOutput(filename string) *FileOutput {
 	}
 }
 
-func (s *OutputService) Run() {
+func (s *OutputService) Run() error {
 	s.wg.Add(1)
 	go func() {
 		defer s.wg.Done()
@@ -141,6 +141,8 @@ func (s *OutputService) Run() {
 			}
 		}
 	}()
+
+	return nil
 }
 
 func (s *OutputService) Close(wg *sync.WaitGroup) {

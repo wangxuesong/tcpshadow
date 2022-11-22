@@ -30,7 +30,7 @@ type (
 	}
 )
 
-func NewProxyService(config *ProxyConfig, index int) *ProxyService {
+func NewProxyService(config *ProxyConfig, index int) Service {
 	return &ProxyService{
 		index:  index,
 		front:  config.Front,

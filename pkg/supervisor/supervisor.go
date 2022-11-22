@@ -9,13 +9,14 @@ import (
 
 type (
 	Supervisor struct {
-		config *Config
+		config         *Config
+		serviceBuilder services.ServiceBuilder
 
 		listener   *services.Listener
 		done       chan struct{}
 		listenChan chan services.ListenChannel
 		wg         sync.WaitGroup
-		proxies    map[string]*services.ProxyService
+		services   map[string]services.Service
 		output     *services.OutputService
 	}
 
@@ -30,12 +31,13 @@ type (
 	}
 )
 
-func NewSupervisor(config *Config) *Supervisor {
+func NewSupervisor(config *Config, builder services.ServiceBuilder) *Supervisor {
 	return &Supervisor{
-		config:     config,
-		done:       make(chan struct{}),
-		listenChan: make(chan services.ListenChannel),
-		proxies:    make(map[string]*services.ProxyService),
+		config:         config,
+		serviceBuilder: builder,
+		done:           make(chan struct{}),
+		listenChan:     make(chan services.ListenChannel),
+		services:       make(map[string]services.Service),
 	}
 }
 
@@ -47,8 +49,8 @@ func (s *Supervisor) Close(wg *sync.WaitGroup) {
 	s.listener.Close(wg)
 
 	// 关闭 proxy
-	wg.Add(len(s.proxies))
-	for _, proxy := range s.proxies {
+	wg.Add(len(s.services))
+	for _, proxy := range s.services {
 		proxy.Close(wg)
 	}
 
@@ -101,14 +103,14 @@ func (s *Supervisor) run() {
 					ProtocolType:  s.config.ProtocolType,
 					Monitor:       monitor,
 				}
-				s.proxies[client] = services.NewProxyService(config, index)
+				s.services[client] = s.serviceBuilder(config, index)
 				index += 1
-				err := s.proxies[client].Run()
+				err := s.services[client].Run()
 				if err != nil {
 					log.Println(err)
 					wg := sync.WaitGroup{}
-					s.proxies[client].Close(&wg)
-					delete(s.proxies, client)
+					s.services[client].Close(&wg)
+					delete(s.services, client)
 				}
 			default:
 			}

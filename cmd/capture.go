@@ -34,6 +34,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/wangxuesong/tcpshadow/model"
+	"github.com/wangxuesong/tcpshadow/pkg/services"
 	"github.com/wangxuesong/tcpshadow/pkg/supervisor"
 )
 
@@ -67,7 +68,7 @@ func runCapture(config *supervisor.Config) error {
 		return err
 	}
 
-	super := supervisor.NewSupervisor(config)
+	super := supervisor.NewSupervisor(config, services.NewProxyService)
 	go super.Serve()
 
 	ch := make(chan os.Signal)
