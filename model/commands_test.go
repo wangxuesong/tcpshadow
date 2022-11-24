@@ -501,9 +501,9 @@ func TestSqliBind_Pack_Unpack(t *testing.T) {
 	assert.NoError(t, err)
 	assert.EqualValues(t, pos, len(expect))
 
-	expect = []byte{0, 5, 0, 1, 0, 0, 0, 0, 0, 0, 0, 8, 122, 104, 97, 110, 103, 115, 97, 110}
+	expect = []byte{0, 5, 0, 1, 0, 0, 0, 0, 0, 0, 0, 9, 122, 104, 97, 110, 103, 115, 97, 110, 0x31, 0}
 	sqliBind1 := &SqliBind{}
-	col1 := BindColumnChar{Type: 0, Indicator: 0, Precision: 0, Data: "zhangsan"}
+	col1 := BindColumnChar{Type: 0, Indicator: 0, Precision: 0, Data: "zhangsan1"}
 	sqliBind1.Columns = append(sqliBind1.Columns, col1)
 	//buf, err = sqliBind1.Pack()
 	//assert.NoError(t, err)

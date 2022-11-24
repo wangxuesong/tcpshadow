@@ -348,6 +348,10 @@ func (sq *SqliBind) Unpack(r io.Reader) error {
 			var count uint16
 			unpacker.FetchUint16(&count).
 				FetchString(uint64(count), &col.Data)
+			if count%2 == 1 {
+				var pad byte
+				unpacker.FetchByte(&pad)
+			}
 			col.Precision = uint32(precsionLow)
 			sq.Columns = append(sq.Columns, col)
 		case 2:
