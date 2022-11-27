@@ -15,6 +15,7 @@ type (
 		listener   *services.Listener
 		done       chan struct{}
 		listenChan chan services.ListenChannel
+		deleteChan chan string
 		wg         sync.WaitGroup
 		services   map[string]services.Service
 		output     *services.OutputService
@@ -37,6 +38,7 @@ func NewSupervisor(config *Config, builder services.ServiceBuilder) *Supervisor 
 		serviceBuilder: builder,
 		done:           make(chan struct{}),
 		listenChan:     make(chan services.ListenChannel),
+		deleteChan:     make(chan string),
 		services:       make(map[string]services.Service),
 	}
 }
@@ -96,26 +98,39 @@ func (s *Supervisor) run() {
 				log.Println("stopping supervisor")
 				return
 			case conn := <-s.listenChan:
-				client := conn.Conn().RemoteAddr().String()
+				clientId := conn.Conn().RemoteAddr().String()
 				config := &services.ProxyConfig{
+					ClientId:      clientId,
+					DeleteChan:    s.deleteChan,
 					Front:         conn.Conn(),
 					ServerAddress: s.config.ServerAddress,
 					ProtocolType:  s.config.ProtocolType,
 					Monitor:       monitor,
 				}
-				s.services[client] = s.serviceBuilder(config, index)
+				s.services[clientId] = s.serviceBuilder(config, index)
 				index += 1
-				err := s.services[client].Run()
+				err := s.services[clientId].Run()
 				if err != nil {
 					log.Println(err)
-					wg := sync.WaitGroup{}
-					s.services[client].Close(&wg)
-					delete(s.services, client)
+					s.deleteClient(clientId)
 				}
+			case id := <-s.deleteChan:
+				s.deleteClient(id)
 			default:
 			}
 		}
 	}()
+}
+
+func (s *Supervisor) deleteClient(clientId string) {
+	if service, ok := s.services[clientId]; ok {
+		delete(s.services, clientId)
+		go func() {
+			wg := sync.WaitGroup{}
+			wg.Add(1)
+			service.Close(&wg)
+		}()
+	}
 }
 
 func DefaultConfig() *Config {

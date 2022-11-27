@@ -22,8 +22,10 @@ type (
 	}
 
 	ProxyConfig struct {
+		ClientId      string
 		Front         net.Conn
 		ServerAddress string
+		DeleteChan    chan string
 
 		ProtocolType string
 		Monitor      chan *Context
@@ -47,6 +49,7 @@ func (s *ProxyService) Run() error {
 
 	server, err := net.Dial("tcp", s.config.ServerAddress)
 	if err != nil {
+		s.front.Close()
 		return err
 	}
 	log.Printf("[%d]Success connected to the server: %s\n", s.index, s.config.ServerAddress)
@@ -84,6 +87,7 @@ func (s *ProxyService) proxyData(src net.Conn, dest net.Conn, forward model.Data
 			}
 			if err == io.EOF {
 				log.Printf("[%d]disconnecting %s\n", s.index, src.RemoteAddr())
+				s.config.DeleteChan <- s.config.ClientId
 				return
 			}
 			log.Println(err)
