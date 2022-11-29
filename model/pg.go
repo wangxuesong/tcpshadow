@@ -32,15 +32,12 @@ type MessageParser interface {
 }
 
 type PgServerParser struct {
-	parser *pgproto.Frontend
 	buffer *bytes.Buffer
 }
 
 func NewPgServerParser() *PgServerParser {
 	buffer := bytes.NewBuffer(nil)
-	frontend, _ := pgproto.NewFrontend(pgproto.NewChunkReader(buffer), nil)
 	return &PgServerParser{
-		parser: frontend,
 		buffer: buffer,
 	}
 }
@@ -51,8 +48,10 @@ func (s *PgServerParser) Append(data []byte) (int, error) {
 
 func (s *PgServerParser) ParseMessage() (PgTransmission, error) {
 	trans := make(PgTransmission, 0, 5)
+	reader := pgproto.NewChunkReader(s.buffer)
 	for {
-		cmd, err := s.parser.Receive()
+		parser, _ := pgproto.NewFrontend(reader, nil)
+		cmd, err := parser.Receive()
 		if err == io.EOF || err == io.ErrUnexpectedEOF {
 			return trans, nil
 		}
