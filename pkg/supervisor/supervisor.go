@@ -57,8 +57,10 @@ func (s *Supervisor) Close(wg *sync.WaitGroup) {
 	}
 
 	// 关闭 output
-	wg.Add(1)
-	s.output.Close(wg)
+	if s.output != nil {
+		wg.Add(1)
+		s.output.Close(wg)
+	}
 
 	// 关闭 Supervisor
 	close(s.done)
