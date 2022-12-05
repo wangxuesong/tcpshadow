@@ -3,15 +3,10 @@ package services
 import "github.com/wangxuesong/tcpshadow/model"
 
 type (
-	Context struct {
-		Data      *model.Data
-		SessionId int
+	Context interface {
+		Data() *model.Data
+		SetData(d *model.Data) error
+		SessionId() int
+		SetSessionId(id int) error
 	}
 )
-
-func NewContext(id int, data *model.Data) *Context {
-	return &Context{
-		Data:      data,
-		SessionId: id,
-	}
-}

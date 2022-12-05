@@ -34,7 +34,7 @@ const (
 
 type (
 	OutputService struct {
-		monitor chan *Context
+		monitor chan Context
 		outputs []Output
 
 		wg   sync.WaitGroup
@@ -42,7 +42,7 @@ type (
 	}
 
 	OutputConfig struct {
-		Monitor        chan *Context
+		Monitor        chan Context
 		Outputs        []OutputType
 		Filename       string
 		ProtocolType   string
@@ -50,7 +50,7 @@ type (
 	}
 
 	Output interface {
-		Write(context *Context) error
+		Write(context Context) error
 		Close(wg *sync.WaitGroup)
 	}
 
@@ -155,8 +155,8 @@ func (s *OutputService) Close(wg *sync.WaitGroup) {
 	s.wg.Wait()
 }
 
-func (o *ConsoleOutput) Write(ctx *Context) error {
-	if ctx.Data.Forward == model.ServerToClient {
+func (o *ConsoleOutput) Write(ctx Context) error {
+	if ctx.Data().Forward == model.ServerToClient {
 		o.dump(YELLOW, ctx)
 	} else {
 		o.dump(GREEN, ctx)
@@ -172,8 +172,8 @@ func (o *ConsoleOutput) sDump(a interface{}) string {
 	return o.printConfig().Sdump(a)
 }
 
-func (o *ConsoleOutput) dump(color string, ctx *Context) {
-	consolePrint(color, fmt.Sprintf("[%d] %s", ctx.SessionId, o.sDump(*ctx.Data)))
+func (o *ConsoleOutput) dump(color string, ctx Context) {
+	consolePrint(color, fmt.Sprintf("[%d] %s", ctx.SessionId, o.sDump(ctx.Data())))
 }
 
 func (o *ConsoleOutput) printConfig() *spew.ConfigState {
@@ -182,21 +182,21 @@ func (o *ConsoleOutput) printConfig() *spew.ConfigState {
 	return scs
 }
 
-func (o *sqliConsoleOutput) Write(ctx *Context) error {
-	if _, ok := o.counts[ctx.SessionId]; !ok {
-		o.counts[ctx.SessionId] = 0
+func (o *sqliConsoleOutput) Write(ctx Context) error {
+	if _, ok := o.counts[ctx.SessionId()]; !ok {
+		o.counts[ctx.SessionId()] = 0
 	}
 	color := RED
-	if ctx.Data.Forward == model.ServerToClient {
+	if ctx.Data().Forward == model.ServerToClient {
 		color = YELLOW
 	} else {
 		color = GREEN
 	}
 
-	if o.counts[ctx.SessionId] < 2 {
+	if o.counts[ctx.SessionId()] < 2 {
 		o.dump(color, ctx)
 	} else {
-		reader := bytes.NewReader(ctx.Data.Buffer)
+		reader := bytes.NewReader(ctx.Data().Buffer)
 		cmds, err := model.UnpackSqliTransmission(reader)
 		if err != nil {
 			o.dump(RED, ctx)
@@ -206,24 +206,24 @@ func (o *sqliConsoleOutput) Write(ctx *Context) error {
 
 	}
 
-	o.counts[ctx.SessionId]++
+	o.counts[ctx.SessionId()]++
 	return nil
 }
 
-func (o *pgConsoleOutput) Write(ctx *Context) error {
-	if _, ok := o.counts[ctx.SessionId]; !ok {
-		o.counts[ctx.SessionId] = 0
+func (o *pgConsoleOutput) Write(ctx Context) error {
+	if _, ok := o.counts[ctx.SessionId()]; !ok {
+		o.counts[ctx.SessionId()] = 0
 	}
 	color := RED
-	if ctx.Data.Forward == model.ServerToClient {
+	if ctx.Data().Forward == model.ServerToClient {
 		color = YELLOW
 	} else {
 		color = GREEN
 	}
 
-	if o.counts[ctx.SessionId] == 0 {
+	if o.counts[ctx.SessionId()] == 0 {
 		backend, err := pgproto3.NewBackend(
-			pgproto3.NewChunkReader(bytes.NewReader(ctx.Data.Buffer)),
+			pgproto3.NewChunkReader(bytes.NewReader(ctx.Data().Buffer)),
 			nil)
 		msg, err := backend.ReceiveStartupMessage()
 		if err != nil {
@@ -237,8 +237,8 @@ func (o *pgConsoleOutput) Write(ctx *Context) error {
 			}
 		}
 	} else {
-		if ctx.Data.Forward == model.ServerToClient {
-			o.serverParser.Append(ctx.Data.Buffer)
+		if ctx.Data().Forward == model.ServerToClient {
+			o.serverParser.Append(ctx.Data().Buffer)
 			msg, err := o.serverParser.ParseMessage()
 			if err != nil {
 				o.dump(color, ctx)
@@ -253,7 +253,7 @@ func (o *pgConsoleOutput) Write(ctx *Context) error {
 				}
 			}
 		} else {
-			o.clientParser.Append(ctx.Data.Buffer)
+			o.clientParser.Append(ctx.Data().Buffer)
 			msg, err := o.clientParser.ParseMessage()
 			if err != nil {
 				o.dump(color, ctx)
@@ -270,12 +270,12 @@ func (o *pgConsoleOutput) Write(ctx *Context) error {
 		}
 	}
 
-	o.counts[ctx.SessionId]++
+	o.counts[ctx.SessionId()]++
 	return nil
 }
 
-func printPackage(color string, ctx *Context, str string) {
-	consolePrint(color, fmt.Sprintf("[%d] %s %s", ctx.SessionId, ctx.Data.Forward, str))
+func printPackage(color string, ctx Context, str string) {
+	consolePrint(color, fmt.Sprintf("[%d] %s %s", ctx.SessionId, ctx.Data().Forward, str))
 }
 
 func consolePrint(color string, str string) {
@@ -286,19 +286,19 @@ func consolePrint(color string, str string) {
 	_, _ = scs.Println(CLEAR)
 }
 
-func (o *FileOutput) Write(ctx *Context) error {
+func (o *FileOutput) Write(ctx Context) error {
 	var header struct {
 		Index   uint16
 		Forward uint8
 		Length  int64
 	}
 	header.Index = uint16(o.index)
-	header.Forward = uint8(ctx.Data.Forward)
-	header.Length = int64(len(ctx.Data.Buffer))
+	header.Forward = uint8(ctx.Data().Forward)
+	header.Length = int64(len(ctx.Data().Buffer))
 	buf := new(bytes.Buffer)
 	_ = binary.Write(buf, binary.LittleEndian, header)
 	_, _ = o.file.Write(buf.Bytes())
-	_, _ = o.file.Write(ctx.Data.Buffer)
+	_, _ = o.file.Write(ctx.Data().Buffer)
 	_ = o.file.Sync()
 	o.index++
 	return nil

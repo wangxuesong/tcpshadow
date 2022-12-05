@@ -20,7 +20,6 @@ type (
 
 		config *ProxyConfig
 	}
-
 	ProxyConfig struct {
 		ClientId      string
 		Front         net.Conn
@@ -28,7 +27,11 @@ type (
 		DeleteChan    chan string
 
 		ProtocolType string
-		Monitor      chan *Context
+		Monitor      chan Context
+	}
+	ProxyContext struct {
+		data      *model.Data
+		sessionId int
 	}
 )
 
@@ -67,7 +70,7 @@ func (s *ProxyService) Close(wg *sync.WaitGroup) {
 	s.wg.Wait()
 }
 
-func (s *ProxyService) proxyData(src net.Conn, dest net.Conn, forward model.DataForward, monitor chan *Context) {
+func (s *ProxyService) proxyData(src net.Conn, dest net.Conn, forward model.DataForward, monitor chan Context) {
 	defer src.Close()
 	defer s.wg.Done()
 	s.wg.Add(1)
@@ -95,7 +98,7 @@ func (s *ProxyService) proxyData(src net.Conn, dest net.Conn, forward model.Data
 		}
 		go func() {
 			data := model.Data{Forward: forward, Buffer: buf[:cnt]}
-			context := NewContext(s.index, &data)
+			context := NewProxyContext(s.index, &data)
 			monitor <- context
 		}()
 
@@ -104,4 +107,29 @@ func (s *ProxyService) proxyData(src net.Conn, dest net.Conn, forward model.Data
 			return
 		}
 	}
+}
+
+func NewProxyContext(id int, data *model.Data) Context {
+	return &ProxyContext{
+		data:      data,
+		sessionId: id,
+	}
+}
+
+func (p *ProxyContext) Data() *model.Data {
+	return p.data
+}
+
+func (p *ProxyContext) SetData(d *model.Data) error {
+	p.data = d
+	return nil
+}
+
+func (p *ProxyContext) SessionId() int {
+	return p.sessionId
+}
+
+func (p *ProxyContext) SetSessionId(id int) error {
+	p.sessionId = id
+	return nil
 }

@@ -84,7 +84,7 @@ func (s *Supervisor) run() {
 	go func() {
 		defer s.wg.Done()
 		index := 0
-		monitor := make(chan *services.Context)
+		monitor := make(chan services.Context)
 		config := services.OutputConfig{
 			Monitor:        monitor,
 			Outputs:        []services.OutputType{services.Console, services.File},
