@@ -16,7 +16,6 @@ func TestConnect(t *testing.T) {
 	assert.Nil(t, err)
 	listener, err := net.ListenTCP("tcp4", clientConn)
 	assert.Nil(t, err)
-	defer listener.Close()
 
 	front, backend := net.Pipe()
 	config := &services.ProxyConfig{
@@ -35,6 +34,7 @@ func TestConnect(t *testing.T) {
 	var wg sync.WaitGroup
 	wg.Add(1)
 	defer bridge.Close(&wg)
+	defer listener.Close()
 
 	msg := &pgproto.StartupMessage{
 		ProtocolVersion: 196608,
