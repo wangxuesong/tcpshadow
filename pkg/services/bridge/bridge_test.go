@@ -1,6 +1,7 @@
 package bridge
 
 import (
+	"github.com/wangxuesong/tcpshadow/model"
 	"net"
 	"sync"
 	"testing"
@@ -53,6 +54,54 @@ func TestConnect(t *testing.T) {
 
 	{
 		parse, err := pgproto.NewFrontend(pgproto.NewChunkReader(front), nil)
+		assert.Nil(t, err)
+		msg, err := parse.Receive()
+		assert.Nil(t, err)
+		assert.IsType(t, &pgproto.Authentication{}, msg)
+		msg, err = parse.Receive()
+		assert.Nil(t, err)
+		assert.IsType(t, &pgproto.ParameterStatus{}, msg)
+		msg, err = parse.Receive()
+		assert.Nil(t, err)
+		assert.IsType(t, &pgproto.BackendKeyData{}, msg)
+		msg, err = parse.Receive()
+		assert.Nil(t, err)
+		assert.IsType(t, &pgproto.ReadyForQuery{}, msg)
+	}
+}
+
+func TestConnectFilter_Handle(t *testing.T) {
+	front, backend := net.Pipe()
+	filter := NewConnectFilter()
+	ctx := &Context{
+		sessionId: 0,
+		front:     front,
+		backend:   backend,
+		state:     ConnectState,
+	}
+	msg := &pgproto.StartupMessage{
+		ProtocolVersion: 196608,
+		Parameters: map[string]string{
+			"DateStyle":          "ISO",
+			"TimeZone":           "Asia/Shanghai",
+			"client_encoding":    "UTF8",
+			"database":           "postgres",
+			"extra_float_digits": "2",
+			"user":               "postgres",
+		},
+	}
+	buf := msg.Encode(nil)
+	ctx.SetData(&model.Data{
+		Forward: model.ClientToServer,
+		Buffer:  buf,
+	})
+	go func() {
+		err := filter.Handle(ctx)
+		assert.Nil(t, err)
+	}()
+
+	{
+		parse, err := pgproto.NewFrontend(pgproto.NewChunkReader(backend), nil)
 		assert.Nil(t, err)
 		msg, err := parse.Receive()
 		assert.Nil(t, err)

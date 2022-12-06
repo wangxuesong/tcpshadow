@@ -24,6 +24,8 @@ type (
 
 		currentCtx *Context
 
+		filters map[SessionState]Handler
+
 		config *services.ProxyConfig
 	}
 
@@ -36,23 +38,33 @@ type (
 	Context struct {
 		data      *model.Data
 		sessionId int
+		front     net.Conn
+		backend   net.Conn
 		state     SessionState
 		requests  model.PgTransmission
 		responses model.PgTransmission
+	}
+
+	ConnectFilter struct {
+		//bridge *BridgeService
 	}
 )
 
 const (
 	ConnectState SessionState = "Connect"
+	QueryState   SessionState = "Query"
 )
 
 func NewBridgeService(config *services.ProxyConfig, index int) services.Service {
-	return &BridgeService{
-		index:  index,
-		front:  config.Front,
-		done:   make(chan struct{}),
-		config: config,
+	b := &BridgeService{
+		index:   index,
+		front:   config.Front,
+		done:    make(chan struct{}),
+		filters: make(map[SessionState]Handler),
+		config:  config,
 	}
+	b.filters[ConnectState] = NewConnectFilter()
+	return b
 }
 
 func (b *BridgeService) Run() error {
@@ -76,6 +88,8 @@ func (b *BridgeService) Run() error {
 
 	ctx := &Context{
 		sessionId: b.index,
+		front:     b.front,
+		backend:   b.backend,
 		state:     ConnectState,
 		requests:  nil,
 		responses: nil,
@@ -236,7 +250,8 @@ func (b *BridgeService) frontReadLoop(readChan chan []byte) {
 				Buffer:  buf,
 			}
 			b.currentCtx.data = data
-			err := b.handleConn(b.currentCtx)
+			err := b.filters[b.currentCtx.state].Handle(b.currentCtx)
+			//err := b.handleConn(b.currentCtx)
 			if err != nil {
 				return
 			}
@@ -259,5 +274,61 @@ func (c *Context) SessionId() int {
 
 func (c *Context) SetSessionId(id int) error {
 	c.sessionId = id
+	return nil
+}
+
+func NewConnectFilter() *ConnectFilter {
+	return &ConnectFilter{}
+}
+
+func (c *ConnectFilter) Handle(ctx services.Context) error {
+	//return c.bridge.handleConn(ctx)
+	buff := bytes.NewBuffer(ctx.Data().Buffer)
+	backend, err := pgproto.NewBackend(pgproto.NewChunkReader(buff), nil)
+	if err != nil {
+		return err
+	}
+
+	msg, err := backend.ReceiveStartupMessage()
+	if err != nil {
+		return err
+	}
+
+	context, ok := ctx.(*Context)
+	if !ok {
+		return fmt.Errorf("unknown context type: %T", ctx)
+	}
+
+	context.requests = []model.PgCommand{msg}
+
+	_ = msg.Parameters["user"]
+
+	auth := &pgproto.Authentication{
+		Type:               pgproto.AuthTypeOk,
+		Salt:               [4]byte{0},
+		SASLAuthMechanisms: nil,
+		SASLData:           nil,
+	}
+	status := &pgproto.ParameterStatus{Name: "server_version", Value: "9.5"}
+	key := &pgproto.BackendKeyData{
+		ProcessID: 881103,
+		SecretKey: 1569992916,
+	}
+	ready := &pgproto.ReadyForQuery{
+		TxStatus: 73,
+	}
+
+	context.responses = []model.PgCommand{auth, status, key, ready}
+	buf, err := context.responses.Pack()
+	if err != nil {
+		return err
+	}
+
+	_, err = context.front.Write(buf)
+	if err != nil {
+		return err
+	}
+
+	context.state = QueryState
 	return nil
 }
