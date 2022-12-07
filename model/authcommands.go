@@ -14,88 +14,88 @@ type AuthCommand interface {
 
 // request
 type AuthRequest struct {
-	header []Header
-	body   []Body
+	Header []Header
+	Body   []Body
 }
 
 func (au *AuthRequest) Pack() ([]byte, error) {
 	buffer := new(bytes.Buffer)
 	packer := binpacker.NewPacker(binary.BigEndian, buffer)
-	packer.PushUint16(uint16(len(au.header) + len(au.body)))
-	for _, c := range au.header {
-		packer.PushUint8(c.noname1)
-		packer.PushUint8(c.noname2)
-		packer.PushUint16(c.noname3)
+	packer.PushUint16(uint16(len(au.Header) + len(au.Body)))
+	for _, c := range au.Header {
+		packer.PushUint8(c.Noname1)
+		packer.PushUint8(c.Noname2)
+		packer.PushUint16(c.Noname3)
 	}
-	for _, b := range au.body {
-		packer.PushUint16(b.noname1)
-		packer.PushUint16(b.noname2)
-		packer.PushUint32(b.noname3)
-		packer.PushInt16(int16(b.ieeemlength))
-		packer.PushBytes([]byte(b.ieeem))
-		packer.PushUint8(b.non)
-		packer.PushInt16(int16(b.noname4))
-		packer.PushBytes([]byte(b.sqlexec))
-		packer.PushUint16(b.versionlength)
-		packer.PushBytes([]byte(b.version))
-		packer.PushUint8(b.noname5)
-		packer.PushInt16(int16(b.numberlength))
-		packer.PushUint8(b.rds)
-		packer.PushUint8(b.noname6)
-		packer.PushUint16(b.sqlilength)
-		packer.PushBytes([]byte(b.sqli))
-		packer.PushUint8(b.noname7)
-		packer.PushUint32(b.noname8)
-		packer.PushUint32(b.noname9)
-		packer.PushUint32(b.noname10)
-		packer.PushUint16(b.noname11)
-		packer.PushUint16(b.clientnamelength)
-		packer.PushBytes([]byte(b.clientname))
-		packer.PushUint8(b.noname12)
-		packer.PushUint16(b.passwordlength)
-		packer.PushBytes([]byte(b.password))
-		packer.PushUint8(b.noname13)
-		packer.PushBytes([]byte(b.noname14))
-		packer.PushUint32(b.noname15)
-		packer.PushBytes([]byte(b.tlitcp))
-		packer.PushUint32(b.noname16)
-		packer.PushUint16(b.noname17)
-		packer.PushUint16(b.asf)
-		packer.PushUint32(b.noname18)
-		packer.PushUint16(b.servernamelength)
-		packer.PushBytes([]byte(b.servername))
-		packer.PushUint8(b.noname19)
-		packer.PushUint16(b.noname20)
-		packer.PushUint16(b.noname21)
-		packer.PushUint16(b.noname22)
-		packer.PushUint16(b.noname23)
-		packer.PushUint16(b.noname24)
-		packer.PushUint16(b.noname25)
-		packer.PushUint16(b.noname26)
-		packer.PushUint16(b.dbpathlength)
-		packer.PushBytes([]byte(b.dbpath))
-		packer.PushUint8(b.noname27)
-		packer.PushUint16(b.dbpathattributelength)
-		packer.PushBytes([]byte(b.dbpathattribute))
-		packer.PushUint8(b.noname28)
-		packer.PushUint16(b.noname29)
-		packer.PushUint32(b.noname30)
-		packer.PushUint32(b.noname31)
-		packer.PushUint16(b.hostnamelength)
-		packer.PushBytes([]byte(b.noname32))
-		packer.PushUint8(b.noname33)
-		packer.PushUint16(b.noname34)
-		packer.PushUint16(b.directorylength)
-		packer.PushBytes([]byte(b.directory))
-		packer.PushUint8(b.noname35)
-		packer.PushUint16(b.noname36)
-		packer.PushUint16(b.appnamelengthall)
-		packer.PushUint32(b.noname37)
-		packer.PushUint32(b.noname38)
-		packer.PushUint16(b.appnamelength)
-		packer.PushBytes([]byte(b.appname))
-		packer.PushUint8(b.noname39)
-		packer.PushUint16(b.asceot)
+	for _, b := range au.Body {
+		packer.PushUint16(b.Noname1)
+		packer.PushUint16(b.Noname2)
+		packer.PushUint32(b.Noname3)
+		packer.PushInt16(int16(b.Ieeemlength))
+		packer.PushBytes([]byte(b.Ieeem))
+		packer.PushUint8(b.Non)
+		packer.PushInt16(int16(b.Noname4))
+		packer.PushBytes([]byte(b.Sqlexec))
+		packer.PushUint16(b.Versionlength)
+		packer.PushBytes([]byte(b.Version))
+		packer.PushUint8(b.Noname5)
+		packer.PushInt16(int16(b.Numberlength))
+		packer.PushBytes([]byte(b.Rds))
+		packer.PushUint8(b.Noname6)
+		packer.PushUint16(b.Sqlilength)
+		packer.PushBytes([]byte(b.Sqli))
+		packer.PushUint8(b.Noname7)
+		packer.PushUint32(b.Noname8)
+		packer.PushUint32(b.Noname9)
+		packer.PushUint32(b.Noname10)
+		packer.PushUint16(b.Noname11)
+		packer.PushUint16(b.Clientnamelength)
+		packer.PushBytes([]byte(b.Clientname))
+		packer.PushUint8(b.Noname12)
+		packer.PushUint16(b.Passwordlength)
+		packer.PushBytes([]byte(b.Password))
+		packer.PushUint8(b.Noname13)
+		packer.PushBytes([]byte(b.Noname14))
+		packer.PushUint32(b.Noname15)
+		packer.PushBytes([]byte(b.Tlitcp))
+		packer.PushUint32(b.Noname16)
+		packer.PushUint16(b.Noname17)
+		packer.PushUint16(b.Asf)
+		packer.PushUint32(b.Noname18)
+		packer.PushUint16(b.Servernamelength)
+		packer.PushBytes([]byte(b.Servername))
+		packer.PushUint8(b.Noname19)
+		packer.PushUint16(b.Noname20)
+		packer.PushUint16(b.Noname21)
+		packer.PushUint16(b.Noname22)
+		packer.PushUint16(b.Noname23)
+		packer.PushUint16(b.Noname24)
+		packer.PushUint16(b.Noname25)
+		packer.PushUint16(b.Noname26)
+		packer.PushUint16(b.Dbpathlength)
+		packer.PushBytes([]byte(b.Dbpath))
+		packer.PushUint8(b.Noname27)
+		packer.PushUint16(b.Dbpathattributelength)
+		packer.PushBytes([]byte(b.Dbpathattribute))
+		packer.PushUint8(b.Noname28)
+		packer.PushUint16(b.Noname29)
+		packer.PushUint32(b.Noname30)
+		packer.PushUint32(b.Noname31)
+		packer.PushUint16(b.Hostnamelength)
+		packer.PushBytes([]byte(b.Noname32))
+		packer.PushUint8(b.Noname33)
+		packer.PushUint16(b.Noname34)
+		packer.PushUint16(b.Directorylength)
+		packer.PushBytes([]byte(b.Directory))
+		packer.PushUint8(b.Noname35)
+		packer.PushUint16(b.Noname36)
+		packer.PushUint16(b.Appnamelengthall)
+		packer.PushUint32(b.Noname37)
+		packer.PushUint32(b.Noname38)
+		packer.PushUint16(b.Appnamelength)
+		packer.PushBytes([]byte(b.Appname))
+		packer.PushUint8(b.Noname39)
+		packer.PushUint16(b.Asceot)
 	}
 
 	return buffer.Bytes(), packer.Error()
@@ -103,82 +103,82 @@ func (au *AuthRequest) Pack() ([]byte, error) {
 
 func (au *AuthRequest) Unpack(r io.Reader) error {
 	unpacker := binpacker.NewUnpacker(binary.BigEndian, r)
-	for _, a := range au.header {
+	for _, a := range au.Header {
 		unpacker.FetchUint16(&a.Length)
-		unpacker.FetchUint8(&a.noname1)
-		unpacker.FetchUint8(&a.noname2)
-		unpacker.FetchUint16(&a.noname3)
+		unpacker.FetchUint8(&a.Noname1)
+		unpacker.FetchUint8(&a.Noname2)
+		unpacker.FetchUint16(&a.Noname3)
 	}
-	for _, c := range au.body {
-		unpacker.FetchUint16(&c.noname1)
-		unpacker.FetchUint16(&c.noname2)
-		unpacker.FetchUint32(&c.noname3)
-		unpacker.FetchUint16(&c.ieeemlength)
-		unpacker.FetchString(uint64(c.ieeemlength)+1, &c.ieeem)
-		unpacker.FetchByte(&c.non)
-		unpacker.FetchUint16(&c.noname4)
-		unpacker.FetchString(12, &c.sqlexec)
-		unpacker.FetchUint16(&c.versionlength)
-		unpacker.FetchString(uint64(c.versionlength)+1, &c.version)
-		unpacker.FetchByte(&c.noname5)
-		unpacker.FetchUint16(&c.numberlength)
-		unpacker.FetchByte(&c.rds)
-		unpacker.FetchByte(&c.noname6)
-		unpacker.FetchUint16(&c.sqlilength)
-		unpacker.FetchString(uint64(c.sqlilength)+1, &c.sqli)
-		unpacker.FetchByte(&c.noname7)
-		unpacker.FetchUint32(&c.noname8)
-		unpacker.FetchUint32(&c.noname9)
-		unpacker.FetchUint32(&c.noname10)
-		unpacker.FetchUint16(&c.noname11)
-		unpacker.FetchUint16(&c.clientnamelength)
-		unpacker.FetchString(uint64(c.clientnamelength)+1, &c.clientname)
-		unpacker.FetchByte(&c.noname12)
-		unpacker.FetchUint16(&c.passwordlength)
-		unpacker.FetchString(uint64(c.passwordlength), &c.password)
-		unpacker.FetchByte(&c.noname13)
-		unpacker.FetchString(8, &c.noname14)
-		unpacker.FetchUint32(&c.noname15)
-		unpacker.FetchString(8, &c.tlitcp)
-		unpacker.FetchUint32(&c.noname16)
-		unpacker.FetchUint16(&c.noname17)
-		unpacker.FetchUint16(&c.asf)
-		unpacker.FetchUint32(&c.noname18)
-		unpacker.FetchUint16(&c.servernamelength)
-		unpacker.FetchString(uint64(c.servernamelength), &c.servername)
-		unpacker.FetchByte(&c.noname19)
-		unpacker.FetchUint16(&c.noname20)
-		unpacker.FetchUint16(&c.noname21)
-		unpacker.FetchUint16(&c.noname22)
-		unpacker.FetchUint16(&c.noname23)
-		unpacker.FetchUint16(&c.noname24)
-		unpacker.FetchUint16(&c.noname25)
-		unpacker.FetchUint16(&c.noname26)
-		unpacker.FetchUint16(&c.dbpathlength)
-		unpacker.FetchString(uint64(c.dbpathlength), &c.dbpath)
-		unpacker.FetchByte(&c.noname27)
-		unpacker.FetchUint16(&c.dbpathattributelength)
-		unpacker.FetchString(uint64(c.dbpathattributelength), &c.dbpathattribute)
-		unpacker.FetchByte(&c.noname28)
-		unpacker.FetchUint16(&c.noname29)
-		unpacker.FetchUint32(&c.noname30)
-		unpacker.FetchUint32(&c.noname31)
-		unpacker.FetchUint32(&c.longthreadid)
-		unpacker.FetchUint16(&c.hostnamelength)
-		unpacker.FetchString(uint64(c.hostnamelength), &c.noname32)
-		unpacker.FetchUint8(&c.noname33)
-		unpacker.FetchUint16(&c.noname34)
-		unpacker.FetchUint16(&c.directorylength)
-		unpacker.FetchString(uint64(c.directorylength), &c.directory)
-		unpacker.FetchByte(&c.noname35)
-		unpacker.FetchUint16(&c.noname36)
-		unpacker.FetchUint16(&c.appnamelengthall)
-		unpacker.FetchUint32(&c.noname37)
-		unpacker.FetchUint32(&c.noname38)
-		unpacker.FetchUint16(&c.appnamelength)
-		unpacker.FetchString(uint64(c.appnamelength), &c.appname)
-		unpacker.FetchByte(&c.noname39)
-		unpacker.FetchUint16(&c.asceot)
+	for _, c := range au.Body {
+		unpacker.FetchUint16(&c.Noname1)
+		unpacker.FetchUint16(&c.Noname2)
+		unpacker.FetchUint32(&c.Noname3)
+		unpacker.FetchUint16(&c.Ieeemlength)
+		unpacker.FetchString(uint64(c.Ieeemlength)+1, &c.Ieeem)
+		unpacker.FetchByte(&c.Non)
+		unpacker.FetchUint16(&c.Noname4)
+		unpacker.FetchString(12, &c.Sqlexec)
+		unpacker.FetchUint16(&c.Versionlength)
+		unpacker.FetchString(uint64(c.Versionlength)+1, &c.Version)
+		unpacker.FetchByte(&c.Noname5)
+		unpacker.FetchUint16(&c.Numberlength)
+		unpacker.FetchString(11, &c.Rds)
+		unpacker.FetchByte(&c.Noname6)
+		unpacker.FetchUint16(&c.Sqlilength)
+		unpacker.FetchString(uint64(c.Sqlilength)+1, &c.Sqli)
+		unpacker.FetchByte(&c.Noname7)
+		unpacker.FetchUint32(&c.Noname8)
+		unpacker.FetchUint32(&c.Noname9)
+		unpacker.FetchUint32(&c.Noname10)
+		unpacker.FetchUint16(&c.Noname11)
+		unpacker.FetchUint16(&c.Clientnamelength)
+		unpacker.FetchString(uint64(c.Clientnamelength)+1, &c.Clientname)
+		unpacker.FetchByte(&c.Noname12)
+		unpacker.FetchUint16(&c.Passwordlength)
+		unpacker.FetchString(uint64(c.Passwordlength), &c.Password)
+		unpacker.FetchByte(&c.Noname13)
+		unpacker.FetchString(8, &c.Noname14)
+		unpacker.FetchUint32(&c.Noname15)
+		unpacker.FetchString(8, &c.Tlitcp)
+		unpacker.FetchUint32(&c.Noname16)
+		unpacker.FetchUint16(&c.Noname17)
+		unpacker.FetchUint16(&c.Asf)
+		unpacker.FetchUint32(&c.Noname18)
+		unpacker.FetchUint16(&c.Servernamelength)
+		unpacker.FetchString(uint64(c.Servernamelength), &c.Servername)
+		unpacker.FetchByte(&c.Noname19)
+		unpacker.FetchUint16(&c.Noname20)
+		unpacker.FetchUint16(&c.Noname21)
+		unpacker.FetchUint16(&c.Noname22)
+		unpacker.FetchUint16(&c.Noname23)
+		unpacker.FetchUint16(&c.Noname24)
+		unpacker.FetchUint16(&c.Noname25)
+		unpacker.FetchUint16(&c.Noname26)
+		unpacker.FetchUint16(&c.Dbpathlength)
+		unpacker.FetchString(uint64(c.Dbpathlength), &c.Dbpath)
+		unpacker.FetchByte(&c.Noname27)
+		unpacker.FetchUint16(&c.Dbpathattributelength)
+		unpacker.FetchString(uint64(c.Dbpathattributelength), &c.Dbpathattribute)
+		unpacker.FetchByte(&c.Noname28)
+		unpacker.FetchUint16(&c.Noname29)
+		unpacker.FetchUint32(&c.Noname30)
+		unpacker.FetchUint32(&c.Noname31)
+		unpacker.FetchUint32(&c.Longthreadid)
+		unpacker.FetchUint16(&c.Hostnamelength)
+		unpacker.FetchString(uint64(c.Hostnamelength), &c.Noname32)
+		unpacker.FetchUint8(&c.Noname33)
+		unpacker.FetchUint16(&c.Noname34)
+		unpacker.FetchUint16(&c.Directorylength)
+		unpacker.FetchString(uint64(c.Directorylength), &c.Directory)
+		unpacker.FetchByte(&c.Noname35)
+		unpacker.FetchUint16(&c.Noname36)
+		unpacker.FetchUint16(&c.Appnamelengthall)
+		unpacker.FetchUint32(&c.Noname37)
+		unpacker.FetchUint32(&c.Noname38)
+		unpacker.FetchUint16(&c.Appnamelength)
+		unpacker.FetchString(uint64(c.Appnamelength), &c.Appname)
+		unpacker.FetchByte(&c.Noname39)
+		unpacker.FetchUint16(&c.Asceot)
 	}
 
 	return unpacker.Error()
@@ -186,121 +186,121 @@ func (au *AuthRequest) Unpack(r io.Reader) error {
 
 type Header struct {
 	Length  uint16
-	noname1 uint8
-	noname2 uint8
-	noname3 uint16
+	Noname1 uint8
+	Noname2 uint8
+	Noname3 uint16
 }
 type Body struct {
-	noname1               uint16
-	noname2               uint16
-	noname3               uint32
-	ieeemlength           uint16
-	ieeem                 string
-	non                   uint8
-	noname4               uint16
-	sqlexec               string
-	versionlength         uint16
-	version               string
-	noname5               uint8
-	numberlength          uint16
-	rds                   uint8
-	noname6               uint8
-	sqlilength            uint16
-	sqli                  string
-	noname7               uint8
-	noname8               uint32
-	noname9               uint32
-	noname10              uint32
-	noname11              uint16
-	clientnamelength      uint16
-	clientname            string
-	noname12              uint8
-	passwordlength        uint16
-	password              string
-	noname13              uint8
-	noname14              string
-	noname15              uint32
-	tlitcp                string
-	noname16              uint32
-	noname17              uint16
-	asf                   uint16
-	noname18              uint32
-	servernamelength      uint16
-	servername            string
-	noname19              uint8
-	noname20              uint16
-	noname21              uint16
-	noname22              uint16
-	noname23              uint16
-	noname24              uint16
-	noname25              uint16
-	noname26              uint16
-	dbpathlength          uint16
-	dbpath                string
-	noname27              uint8
-	dbpathattributelength uint16
-	dbpathattribute       string
-	noname28              uint8
-	noname29              uint16
-	noname30              uint32
-	noname31              uint32
-	longthreadid          uint32
-	hostnamelength        uint16
-	noname32              string
-	noname33              uint8
-	noname34              uint16
-	directorylength       uint16
-	directory             string
-	noname35              uint8
-	noname36              uint16
-	appnamelengthall      uint16
-	noname37              uint32
-	noname38              uint32
-	appnamelength         uint16
-	appname               string
-	noname39              uint8
-	asceot                uint16
+	Noname1               uint16
+	Noname2               uint16
+	Noname3               uint32
+	Ieeemlength           uint16
+	Ieeem                 string
+	Non                   uint8
+	Noname4               uint16
+	Sqlexec               string
+	Versionlength         uint16
+	Version               string
+	Noname5               uint8
+	Numberlength          uint16
+	Rds                   string
+	Noname6               uint8
+	Sqlilength            uint16
+	Sqli                  string
+	Noname7               uint8
+	Noname8               uint32
+	Noname9               uint32
+	Noname10              uint32
+	Noname11              uint16
+	Clientnamelength      uint16
+	Clientname            string
+	Noname12              uint8
+	Passwordlength        uint16
+	Password              string
+	Noname13              uint8
+	Noname14              string
+	Noname15              uint32
+	Tlitcp                string
+	Noname16              uint32
+	Noname17              uint16
+	Asf                   uint16
+	Noname18              uint32
+	Servernamelength      uint16
+	Servername            string
+	Noname19              uint8
+	Noname20              uint16
+	Noname21              uint16
+	Noname22              uint16
+	Noname23              uint16
+	Noname24              uint16
+	Noname25              uint16
+	Noname26              uint16
+	Dbpathlength          uint16
+	Dbpath                string
+	Noname27              uint8
+	Dbpathattributelength uint16
+	Dbpathattribute       string
+	Noname28              uint8
+	Noname29              uint16
+	Noname30              uint32
+	Noname31              uint32
+	Longthreadid          uint32
+	Hostnamelength        uint16
+	Noname32              string
+	Noname33              uint8
+	Noname34              uint16
+	Directorylength       uint16
+	Directory             string
+	Noname35              uint8
+	Noname36              uint16
+	Appnamelengthall      uint16
+	Noname37              uint32
+	Noname38              uint32
+	Appnamelength         uint16
+	Appname               string
+	Noname39              uint8
+	Asceot                uint16
 }
 
 // response
 type AuthResponse struct {
-	length  uint16
-	context []Context
+	Length  uint16
+	Context []Context
 }
 
 func (au *AuthResponse) Pack() ([]byte, error) {
 	buffer := new(bytes.Buffer)
 	packer := binpacker.NewPacker(binary.BigEndian, buffer)
-	packer.PushUint16(au.length)
-	for _, c := range au.context {
-		packer.PushByte(c.noname1)
-		packer.PushUint16(c.noname2)
-		packer.PushByte(c.noname222)
-		packer.PushUint16(c.noname3)
-		packer.PushUint16(c.noname4)
-		packer.PushUint32(c.noname5)
-		packer.PushUint16(c.noname6)
-		packer.PushUint16(c.noname7)
-		packer.PushBytes([]byte(c.noname8))
-		packer.PushUint16(c.noname9)
-		packer.PushBytes([]byte(c.noname10))
-		packer.PushUint16(c.noname11)
-		packer.PushBytes([]byte(c.noname12))
-		packer.PushUint16(c.noname13)
-		packer.PushBytes([]byte(c.noname14))
-		packer.PushUint32(c.noname15)
-		packer.PushUint32(c.noname16)
-		packer.PushUint32(c.noname17)
-		packer.PushUint16(c.noname18)
-		packer.PushUint16(c.noname19)
-		packer.PushUint16(c.noname20)
-		packer.PushBytes([]byte(c.noname21))
-		packer.PushUint16(c.noname22)
-		packer.PushBytes([]byte(c.noname23))
-		packer.PushUint16(c.noname24)
-		packer.PushUint16(c.noname25)
-		packer.PushUint16(c.noname26)
-		packer.PushUint16(c.noname27)
+	packer.PushUint16(au.Length)
+	for _, c := range au.Context {
+		packer.PushByte(c.Noname1)
+		packer.PushUint16(c.Noname2)
+		packer.PushByte(c.Noname222)
+		packer.PushUint16(c.Noname3)
+		packer.PushUint16(c.Noname4)
+		packer.PushUint32(c.Noname5)
+		packer.PushUint16(c.Noname6)
+		packer.PushUint16(c.Noname7)
+		packer.PushBytes([]byte(c.Noname8))
+		packer.PushUint16(c.Noname9)
+		packer.PushBytes([]byte(c.Noname10))
+		packer.PushUint16(c.Noname11)
+		packer.PushBytes([]byte(c.Noname12))
+		packer.PushUint16(c.Noname13)
+		packer.PushBytes([]byte(c.Noname14))
+		packer.PushUint32(c.Noname15)
+		packer.PushUint32(c.Noname16)
+		packer.PushUint32(c.Noname17)
+		packer.PushUint16(c.Noname18)
+		packer.PushUint16(c.Noname19)
+		packer.PushUint16(c.Noname20)
+		packer.PushBytes([]byte(c.Noname21))
+		packer.PushUint16(c.Noname22)
+		packer.PushBytes([]byte(c.Noname23))
+		packer.PushUint16(c.Noname24)
+		packer.PushUint16(c.Noname25)
+		packer.PushUint16(c.Noname26)
+		packer.PushUint16(c.Noname27)
 	}
 
 	return buffer.Bytes(), packer.Error()
@@ -308,68 +308,68 @@ func (au *AuthResponse) Pack() ([]byte, error) {
 
 func (au *AuthResponse) Unpack(r io.Reader) error {
 	unpacker := binpacker.NewUnpacker(binary.BigEndian, r)
-	unpacker.FetchUint16(&au.length)
-	for _, c := range au.context {
-		unpacker.FetchByte(&c.noname1)
-		unpacker.FetchUint16(&c.noname2)
-		unpacker.FetchByte(&c.noname222)
-		unpacker.FetchUint16(&c.noname3)
-		unpacker.FetchUint16(&c.noname4)
-		unpacker.FetchUint32(&c.noname5)
-		unpacker.FetchUint16(&c.noname6)
-		unpacker.FetchUint16(&c.noname7)
-		unpacker.FetchString(12, &c.noname8)
-		unpacker.FetchUint16(&c.noname9)
-		unpacker.FetchString(32, &c.noname10)
-		unpacker.FetchUint16(&c.noname11)
-		unpacker.FetchString(35, &c.noname12)
-		unpacker.FetchUint16(&c.noname13)
-		unpacker.FetchString(18, &c.noname14)
-		unpacker.FetchUint32(&c.noname15)
-		unpacker.FetchUint32(&c.noname16)
-		unpacker.FetchUint32(&c.noname17)
-		unpacker.FetchUint16(&c.noname18)
-		unpacker.FetchUint16(&c.noname19)
-		unpacker.FetchUint16(&c.noname20)
-		unpacker.FetchString(24, &c.noname21)
-		unpacker.FetchUint16(&c.noname22)
-		unpacker.FetchString(6, &c.noname23)
-		unpacker.FetchUint16(&c.noname24)
-		unpacker.FetchUint16(&c.noname25)
-		unpacker.FetchUint16(&c.noname26)
-		unpacker.FetchUint16(&c.noname27)
+	unpacker.FetchUint16(&au.Length)
+	for _, c := range au.Context {
+		unpacker.FetchByte(&c.Noname1)
+		unpacker.FetchUint16(&c.Noname2)
+		unpacker.FetchByte(&c.Noname222)
+		unpacker.FetchUint16(&c.Noname3)
+		unpacker.FetchUint16(&c.Noname4)
+		unpacker.FetchUint32(&c.Noname5)
+		unpacker.FetchUint16(&c.Noname6)
+		unpacker.FetchUint16(&c.Noname7)
+		unpacker.FetchString(12, &c.Noname8)
+		unpacker.FetchUint16(&c.Noname9)
+		unpacker.FetchString(32, &c.Noname10)
+		unpacker.FetchUint16(&c.Noname11)
+		unpacker.FetchString(35, &c.Noname12)
+		unpacker.FetchUint16(&c.Noname13)
+		unpacker.FetchString(18, &c.Noname14)
+		unpacker.FetchUint32(&c.Noname15)
+		unpacker.FetchUint32(&c.Noname16)
+		unpacker.FetchUint32(&c.Noname17)
+		unpacker.FetchUint16(&c.Noname18)
+		unpacker.FetchUint16(&c.Noname19)
+		unpacker.FetchUint16(&c.Noname20)
+		unpacker.FetchString(24, &c.Noname21)
+		unpacker.FetchUint16(&c.Noname22)
+		unpacker.FetchString(6, &c.Noname23)
+		unpacker.FetchUint16(&c.Noname24)
+		unpacker.FetchUint16(&c.Noname25)
+		unpacker.FetchUint16(&c.Noname26)
+		unpacker.FetchUint16(&c.Noname27)
 	}
 
 	return unpacker.Error()
 }
 
 type Context struct {
-	noname1   uint8
-	noname2   uint16
-	noname222 uint8
-	noname3   uint16
-	noname4   uint16
-	noname5   uint32
-	noname6   uint16
-	noname7   uint16
-	noname8   string
-	noname9   uint16
-	noname10  string
-	noname11  uint16
-	noname12  string
-	noname13  uint16
-	noname14  string
-	noname15  uint32
-	noname16  uint32
-	noname17  uint32
-	noname18  uint16
-	noname19  uint16
-	noname20  uint16
-	noname21  string
-	noname22  uint16
-	noname23  string
-	noname24  uint16
-	noname25  uint16
-	noname26  uint16
-	noname27  uint16
+	Noname1   uint8
+	Noname2   uint16
+	Noname222 uint8
+	Noname3   uint16
+	Noname4   uint16
+	Noname5   uint32
+	Noname6   uint16
+	Noname7   uint16
+	Noname8   string
+	Noname9   uint16
+	Noname10  string
+	Noname11  uint16
+	Noname12  string
+	Noname13  uint16
+	Noname14  string
+	Noname15  uint32
+	Noname16  uint32
+	Noname17  uint32
+	Noname18  uint16
+	Noname19  uint16
+	Noname20  uint16
+	Noname21  string
+	Noname22  uint16
+	Noname23  string
+	Noname24  uint16
+	Noname25  uint16
+	Noname26  uint16
+	Noname27  uint16
 }
