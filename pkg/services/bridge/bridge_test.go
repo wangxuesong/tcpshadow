@@ -137,3 +137,85 @@ func TestConnectFilter_Handle(t *testing.T) {
 		assert.IsType(t, &pgproto.ReadyForQuery{}, msg)
 	}
 }
+
+func TestQueryFilter_Handle(t *testing.T) {
+	pgFront, pgBackend := net.Pipe()
+	gbFront, _ := net.Pipe()
+	filter := NewQueryFilter()
+	ctx := &Context{
+		sessionId: 0,
+		front:     pgBackend,
+		backend:   gbFront,
+		state:     QueryState,
+	}
+	buffer := (&pgproto.Parse{
+		Name:          "",
+		Query:         "selet * from test",
+		ParameterOIDs: nil,
+	}).Encode(nil)
+	buffer = (&pgproto.Bind{
+		DestinationPortal:    "",
+		PreparedStatement:    "",
+		ParameterFormatCodes: nil,
+		Parameters:           nil,
+		ResultFormatCodes:    nil,
+	}).Encode(buffer)
+	buffer = (&pgproto.Describe{
+		ObjectType: 'P',
+		Name:       "",
+	}).Encode(buffer)
+	buffer = (&pgproto.Execute{
+		Portal:  "",
+		MaxRows: 0,
+	}).Encode(buffer)
+	buffer = (&pgproto.Sync{}).Encode(buffer)
+	ctx.SetData(&model.Data{
+		Forward: model.ClientToServer,
+		Buffer:  buffer,
+	})
+	go func() {
+		err := filter.Handle(ctx)
+		assert.Nil(t, err)
+
+		// gbase response
+		ctx.SetData(&model.Data{
+			Forward: model.ServerToClient,
+			Buffer:  buffer,
+		})
+		err = filter.Handle(ctx)
+		assert.Nil(t, err)
+	}()
+
+	{
+		parse, err := pgproto.NewFrontend(pgproto.NewChunkReader(pgFront), nil)
+		assert.Nil(t, err)
+		msg, err := parse.Receive()
+		assert.Nil(t, err)
+		assert.IsType(t, &pgproto.ParseComplete{}, msg)
+		msg, err = parse.Receive()
+		assert.Nil(t, err)
+		assert.IsType(t, &pgproto.BindComplete{}, msg)
+		msg, err = parse.Receive()
+		assert.Nil(t, err)
+		assert.IsType(t, &pgproto.RowDescription{}, msg)
+		//msg, err = parse.Receive()
+		//assert.Nil(t, err)
+		//assert.IsType(t, &pgproto.DataRow{}, msg)
+		//msg, err = parse.Receive()
+		//assert.Nil(t, err)
+		//assert.IsType(t, &pgproto.CommandComplete{}, msg)
+		msg, err = parse.Receive()
+		assert.Nil(t, err)
+		assert.IsType(t, &pgproto.ReadyForQuery{}, msg)
+		//assert.IsType(t, &pgproto.Authentication{}, msg)
+		//msg, err = parse.Receive()
+		//assert.Nil(t, err)
+		//assert.IsType(t, &pgproto.ParameterStatus{}, msg)
+		//msg, err = parse.Receive()
+		//assert.Nil(t, err)
+		//assert.IsType(t, &pgproto.BackendKeyData{}, msg)
+		//msg, err = parse.Receive()
+		//assert.Nil(t, err)
+		//assert.IsType(t, &pgproto.ReadyForQuery{}, msg)
+	}
+}
