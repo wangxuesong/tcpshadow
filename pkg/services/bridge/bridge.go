@@ -57,6 +57,7 @@ func NewBridgeService(config *services.ProxyConfig, index int) services.Service 
 		config:  config,
 	}
 	b.filters[ConnectState] = NewConnectFilter()
+	b.filters[QueryState] = NewQueryFilter()
 	return b
 }
 

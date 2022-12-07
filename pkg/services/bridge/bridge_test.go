@@ -56,13 +56,15 @@ func TestConnect(t *testing.T) {
 	{
 		conn, err := listener.AcceptTCP()
 		assert.Nil(t, err)
+		//TODO: 增加发送给 8s 登录包之后取消以下注释
 		//buf := make([]byte, 1024)
 		// receive auth package
 		//c, err := conn.Read(buf)
 		//assert.Nil(t, err)
 		//assert.True(t, c > 0)
+
 		// send auth ack
-		conn.Write([]byte{88, 11, 03})
+		conn.Write([]byte{88, 11, 03}) //TODO: 将临时数据替换成正式数据
 	}
 
 	{
@@ -85,7 +87,7 @@ func TestConnect(t *testing.T) {
 
 func TestConnectFilter_Handle(t *testing.T) {
 	pgFront, pgBackend := net.Pipe()
-	gbFront, _ := net.Pipe()
+	gbFront, gbBackend := net.Pipe()
 	filter := NewConnectFilter()
 	ctx := &Context{
 		sessionId: 0,
@@ -109,6 +111,13 @@ func TestConnectFilter_Handle(t *testing.T) {
 		Forward: model.ClientToServer,
 		Buffer:  buf,
 	})
+
+	// 8s Server
+	go func() {
+		buf := make([]byte, 1024)
+		gbBackend.Read(buf)
+	}()
+
 	go func() {
 		err := filter.Handle(ctx)
 		assert.Nil(t, err)
@@ -140,7 +149,7 @@ func TestConnectFilter_Handle(t *testing.T) {
 
 func TestQueryFilter_Handle(t *testing.T) {
 	pgFront, pgBackend := net.Pipe()
-	gbFront, _ := net.Pipe()
+	gbFront, gbBackend := net.Pipe()
 	filter := NewQueryFilter()
 	ctx := &Context{
 		sessionId: 0,
@@ -173,11 +182,18 @@ func TestQueryFilter_Handle(t *testing.T) {
 		Forward: model.ClientToServer,
 		Buffer:  buffer,
 	})
+	// 8s Server
+	go func() {
+		buf := make([]byte, 1024)
+		gbBackend.Read(buf)
+	}()
+
 	go func() {
 		err := filter.Handle(ctx)
 		assert.Nil(t, err)
 
 		// gbase response
+		//TODO: 将 buffer 改成正式的 sqli 数据
 		ctx.SetData(&model.Data{
 			Forward: model.ServerToClient,
 			Buffer:  buffer,

@@ -32,12 +32,13 @@ func (c *ConnectFilter) Handle(ctx services.Context) error {
 		_ = msg.Parameters["password"]
 
 		context, ok := ctx.(*Context)
-		context.requests = []model.PgCommand{msg}
 		if !ok {
 			return fmt.Errorf("unknown context type: %T", ctx)
 		}
+		context.requests = []model.PgCommand{msg}
 
 		// TODO: send auth package to 8s
+		context.backend.Write(ctx.Data().Buffer)
 	}
 
 	if ctx.Data().Forward == model.ServerToClient {

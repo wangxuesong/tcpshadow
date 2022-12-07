@@ -30,7 +30,8 @@ func (f *QueryFilter) Handle(ctx services.Context) error {
 			return fmt.Errorf("unknown context type: %T", ctx)
 		}
 
-		// TODO: send auth package to 8s
+		// TODO: send sqli package to 8s
+		context.backend.Write(ctx.Data().Buffer)
 	}
 
 	if ctx.Data().Forward == model.ServerToClient {
