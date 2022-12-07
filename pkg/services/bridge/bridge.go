@@ -180,6 +180,7 @@ func (b *BridgeService) Run() error {
 	}()
 
 	go b.frontReadLoop(frontReadChan)
+	go b.backendReadLoop(backendReadChan)
 	return nil
 }
 
@@ -187,56 +188,6 @@ func (b *BridgeService) Close(wg *sync.WaitGroup) {
 	defer wg.Done()
 	close(b.done)
 	b.wg.Wait()
-}
-
-func (b *BridgeService) handleConn(ctx services.Context) error {
-	buff := bytes.NewBuffer(ctx.Data().Buffer)
-	backend, err := pgproto.NewBackend(pgproto.NewChunkReader(buff), nil)
-	if err != nil {
-		return err
-	}
-
-	msg, err := backend.ReceiveStartupMessage()
-	if err != nil {
-		return err
-	}
-
-	context, ok := ctx.(*Context)
-	if !ok {
-		return fmt.Errorf("unknown context type: %T", ctx)
-	}
-
-	context.requests = []model.PgCommand{msg}
-
-	_ = msg.Parameters["user"]
-
-	auth := &pgproto.Authentication{
-		Type:               pgproto.AuthTypeOk,
-		Salt:               [4]byte{0},
-		SASLAuthMechanisms: nil,
-		SASLData:           nil,
-	}
-	status := &pgproto.ParameterStatus{Name: "server_version", Value: "9.5"}
-	key := &pgproto.BackendKeyData{
-		ProcessID: 881103,
-		SecretKey: 1569992916,
-	}
-	ready := &pgproto.ReadyForQuery{
-		TxStatus: 73,
-	}
-
-	context.responses = []model.PgCommand{auth, status, key, ready}
-	buf, err := context.responses.Pack()
-	if err != nil {
-		return err
-	}
-
-	_, err = b.front.Write(buf)
-	if err != nil {
-		return err
-	}
-
-	return nil
 }
 
 func (b *BridgeService) frontReadLoop(readChan chan []byte) {
@@ -250,10 +201,36 @@ func (b *BridgeService) frontReadLoop(readChan chan []byte) {
 				Buffer:  buf,
 			}
 			b.currentCtx.data = data
-			err := b.filters[b.currentCtx.state].Handle(b.currentCtx)
-			//err := b.handleConn(b.currentCtx)
-			if err != nil {
-				return
+			if handler, ok := b.filters[b.currentCtx.state]; ok {
+				err := handler.Handle(b.currentCtx)
+				if err != nil {
+					return
+				}
+			} else {
+				log.Printf("unknown context state: %s", b.currentCtx.state)
+			}
+		}
+	}
+}
+
+func (b *BridgeService) backendReadLoop(readChan chan []byte) {
+	for {
+		select {
+		case <-b.done:
+			return
+		case buf := <-readChan:
+			data := &model.Data{
+				Forward: model.ServerToClient,
+				Buffer:  buf,
+			}
+			b.currentCtx.data = data
+			if handler, ok := b.filters[b.currentCtx.state]; ok {
+				err := handler.Handle(b.currentCtx)
+				if err != nil {
+					return
+				}
+			} else {
+				log.Printf("unknown context state: %s", b.currentCtx.state)
 			}
 		}
 	}
@@ -282,53 +259,63 @@ func NewConnectFilter() *ConnectFilter {
 }
 
 func (c *ConnectFilter) Handle(ctx services.Context) error {
-	//return c.bridge.handleConn(ctx)
 	buff := bytes.NewBuffer(ctx.Data().Buffer)
-	backend, err := pgproto.NewBackend(pgproto.NewChunkReader(buff), nil)
-	if err != nil {
-		return err
+	if ctx.Data().Forward == model.ClientToServer {
+		backend, err := pgproto.NewBackend(pgproto.NewChunkReader(buff), nil)
+		if err != nil {
+			return err
+		}
+
+		msg, err := backend.ReceiveStartupMessage()
+		if err != nil {
+			return err
+		}
+		_ = msg.Parameters["user"]
+		_ = msg.Parameters["password"]
+
+		context, ok := ctx.(*Context)
+		context.requests = []model.PgCommand{msg}
+		if !ok {
+			return fmt.Errorf("unknown context type: %T", ctx)
+		}
+
+		// TODO: send auth package to 8s
 	}
 
-	msg, err := backend.ReceiveStartupMessage()
-	if err != nil {
-		return err
+	if ctx.Data().Forward == model.ServerToClient {
+		//TODO: receive from 8s
+		auth := &pgproto.Authentication{
+			Type:               pgproto.AuthTypeOk,
+			Salt:               [4]byte{0},
+			SASLAuthMechanisms: nil,
+			SASLData:           nil,
+		}
+		status := &pgproto.ParameterStatus{Name: "server_version", Value: "9.5"}
+		key := &pgproto.BackendKeyData{
+			ProcessID: 881103,
+			SecretKey: 1569992916,
+		}
+		ready := &pgproto.ReadyForQuery{
+			TxStatus: 73,
+		}
+
+		context, ok := ctx.(*Context)
+		if !ok {
+			return fmt.Errorf("unknown context type: %T", ctx)
+		}
+		context.responses = []model.PgCommand{auth, status, key, ready}
+		buf, err := context.responses.Pack()
+		if err != nil {
+			return err
+		}
+
+		_, err = context.front.Write(buf)
+		if err != nil {
+			return err
+		}
+
+		context.state = QueryState
 	}
 
-	context, ok := ctx.(*Context)
-	if !ok {
-		return fmt.Errorf("unknown context type: %T", ctx)
-	}
-
-	context.requests = []model.PgCommand{msg}
-
-	_ = msg.Parameters["user"]
-
-	auth := &pgproto.Authentication{
-		Type:               pgproto.AuthTypeOk,
-		Salt:               [4]byte{0},
-		SASLAuthMechanisms: nil,
-		SASLData:           nil,
-	}
-	status := &pgproto.ParameterStatus{Name: "server_version", Value: "9.5"}
-	key := &pgproto.BackendKeyData{
-		ProcessID: 881103,
-		SecretKey: 1569992916,
-	}
-	ready := &pgproto.ReadyForQuery{
-		TxStatus: 73,
-	}
-
-	context.responses = []model.PgCommand{auth, status, key, ready}
-	buf, err := context.responses.Pack()
-	if err != nil {
-		return err
-	}
-
-	_, err = context.front.Write(buf)
-	if err != nil {
-		return err
-	}
-
-	context.state = QueryState
 	return nil
 }

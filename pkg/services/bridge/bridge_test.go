@@ -1,13 +1,13 @@
 package bridge
 
 import (
-	"github.com/wangxuesong/tcpshadow/model"
 	"net"
 	"sync"
 	"testing"
 
 	pgproto "github.com/jackc/pgproto3"
 	"github.com/stretchr/testify/assert"
+	"github.com/wangxuesong/tcpshadow/model"
 	"github.com/wangxuesong/tcpshadow/pkg/services"
 )
 
@@ -52,6 +52,19 @@ func TestConnect(t *testing.T) {
 	_, err = front.Write(buf)
 	assert.Nil(t, err)
 
+	// 8s Server
+	{
+		conn, err := listener.AcceptTCP()
+		assert.Nil(t, err)
+		//buf := make([]byte, 1024)
+		// receive auth package
+		//c, err := conn.Read(buf)
+		//assert.Nil(t, err)
+		//assert.True(t, c > 0)
+		// send auth ack
+		conn.Write([]byte{88, 11, 03})
+	}
+
 	{
 		parse, err := pgproto.NewFrontend(pgproto.NewChunkReader(front), nil)
 		assert.Nil(t, err)
@@ -71,12 +84,13 @@ func TestConnect(t *testing.T) {
 }
 
 func TestConnectFilter_Handle(t *testing.T) {
-	front, backend := net.Pipe()
+	pgFront, pgBackend := net.Pipe()
+	gbFront, _ := net.Pipe()
 	filter := NewConnectFilter()
 	ctx := &Context{
 		sessionId: 0,
-		front:     front,
-		backend:   backend,
+		front:     pgBackend,
+		backend:   gbFront,
 		state:     ConnectState,
 	}
 	msg := &pgproto.StartupMessage{
@@ -98,10 +112,16 @@ func TestConnectFilter_Handle(t *testing.T) {
 	go func() {
 		err := filter.Handle(ctx)
 		assert.Nil(t, err)
+		ctx.SetData(&model.Data{
+			Forward: model.ServerToClient,
+			Buffer:  buf,
+		})
+		err = filter.Handle(ctx)
+		assert.Nil(t, err)
 	}()
 
 	{
-		parse, err := pgproto.NewFrontend(pgproto.NewChunkReader(backend), nil)
+		parse, err := pgproto.NewFrontend(pgproto.NewChunkReader(pgFront), nil)
 		assert.Nil(t, err)
 		msg, err := parse.Receive()
 		assert.Nil(t, err)
