@@ -184,7 +184,16 @@ func TestQueryFilter_Handle(t *testing.T) {
 	// 8s Server
 	go func() {
 		buf := make([]byte, 1024)
-		gbBackend.Read(buf)
+		c, err := gbBackend.Read(buf)
+		assert.Nil(t, err)
+		assert.True(t, c > 0)
+		//readseeker := bytes.NewReader(buf)
+		//msgs, err := model.UnpackSqliTransmission(readseeker)
+		//assert.Nil(t, nil)
+		//assert.IsType(t, &model.SqliPrepare{}, msgs[1:2])
+		//assert.IsType(t, &model.SqliNDescribe{}, msgs[2:3])
+		//assert.IsType(t, &model.SqliWantDone{}, msgs[3:4])
+		//assert.IsType(t, &model.SqliEot{}, msgs[4:5])
 	}()
 
 	go func() {
@@ -192,10 +201,59 @@ func TestQueryFilter_Handle(t *testing.T) {
 		assert.Nil(t, err)
 
 		// gbase response
+		prepare, err := (&model.SqliDescribe{
+			StatementType: 2,
+			StatementID:   0,
+			EstimatedCost: 0,
+			TupleSize:     8,
+			CountOfFields: 2,
+			StringTable:   8,
+			Fields: []model.SqliField{{
+				FieldIndex:              0,
+				ColumnStartPos:          0,
+				ColumnType:              2,
+				ColumnExtendedBuiltinId: 0,
+				OwnerName:               "",
+				ExtendedName:            "",
+				Reference:               0,
+				Alignment:               0,
+				SourceType:              0,
+				Length:                  4,
+				Name:                    "id",
+			}, {
+				FieldIndex:              3,
+				ColumnStartPos:          4,
+				ColumnType:              2,
+				ColumnExtendedBuiltinId: 0,
+				OwnerName:               "",
+				ExtendedName:            "",
+				Reference:               0,
+				Alignment:               0,
+				SourceType:              0,
+				Length:                  4,
+				Name:                    "code",
+			},
+			},
+		}).Pack()
+		assert.Nil(t, err)
+		prepare, err = (&model.SqliDone{
+			Warning:  0,
+			Rows:     0,
+			RowID:    0,
+			SerialID: 0,
+		}).Pack()
+		assert.Nil(t, err)
+		prepare, err = (&model.SqliCost{
+			EstimatedRows: 1,
+			EstimatedIO:   2,
+		}).Pack()
+		assert.Nil(t, err)
+		prepare, err = (&model.SqliEot{}).Pack()
+		assert.Nil(t, err)
 		//TODO: 将 buffer 改成正式的 sqli 数据
 		ctx.SetData(&model.Data{
 			Forward: model.ServerToClient,
-			Buffer:  buffer,
+			Buffer:  prepare,
 		})
 		err = filter.Handle(ctx)
 		assert.Nil(t, err)
