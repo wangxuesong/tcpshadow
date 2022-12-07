@@ -57,11 +57,10 @@ func TestConnect(t *testing.T) {
 		conn, err := listener.AcceptTCP()
 		assert.Nil(t, err)
 		//TODO: 增加发送给 8s 登录包之后取消以下注释
-		//buf := make([]byte, 1024)
-		// receive auth package
-		//c, err := conn.Read(buf)
-		//assert.Nil(t, err)
-		//assert.True(t, c > 0)
+		buf := make([]byte, 1024)
+		c, err := conn.Read(buf)
+		assert.Nil(t, err)
+		assert.True(t, c > 0)
 
 		// send auth ack
 		conn.Write([]byte{88, 11, 03}) //TODO: 将临时数据替换成正式数据
@@ -224,15 +223,5 @@ func TestQueryFilter_Handle(t *testing.T) {
 		msg, err = parse.Receive()
 		assert.Nil(t, err)
 		assert.IsType(t, &pgproto.ReadyForQuery{}, msg)
-		//assert.IsType(t, &pgproto.Authentication{}, msg)
-		//msg, err = parse.Receive()
-		//assert.Nil(t, err)
-		//assert.IsType(t, &pgproto.ParameterStatus{}, msg)
-		//msg, err = parse.Receive()
-		//assert.Nil(t, err)
-		//assert.IsType(t, &pgproto.BackendKeyData{}, msg)
-		//msg, err = parse.Receive()
-		//assert.Nil(t, err)
-		//assert.IsType(t, &pgproto.ReadyForQuery{}, msg)
 	}
 }
