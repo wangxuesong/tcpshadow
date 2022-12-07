@@ -37,26 +37,28 @@ func (f *QueryFilter) Handle(ctx services.Context) error {
 		//TODO: receive from 8s
 
 		//TODO: 生成查询对应的 Pg 包
-		auth := &pgproto3.Authentication{
-			Type:               pgproto3.AuthTypeOk,
-			Salt:               [4]byte{0},
-			SASLAuthMechanisms: nil,
-			SASLData:           nil,
-		}
-		status := &pgproto3.ParameterStatus{Name: "server_version", Value: "9.5"}
-		key := &pgproto3.BackendKeyData{
-			ProcessID: 881103,
-			SecretKey: 1569992916,
-		}
-		ready := &pgproto3.ReadyForQuery{
-			TxStatus: 73,
-		}
-
+		p := &pgproto3.ParseComplete{}
+		b := &pgproto3.BindComplete{}
+		r := &pgproto3.RowDescription{Fields: []pgproto3.FieldDescription{
+			{
+				Name:                 "id",
+				TableOID:             40963,
+				TableAttributeNumber: 1,
+				DataTypeOID:          23,
+				DataTypeSize:         4,
+				TypeModifier:         -1,
+				Format:               0,
+			},
+		}}
 		context, ok := ctx.(*Context)
+		response := [][]byte{[]byte("response")}
+		d := &pgproto3.DataRow{Values: response}
+		c := &pgproto3.CommandComplete{CommandTag: "SELECT 1"}
+		re := &pgproto3.ReadyForQuery{TxStatus: 'I'}
 		if !ok {
 			return fmt.Errorf("unknown context type: %T", ctx)
 		}
-		context.responses = []model.PgCommand{auth, status, key, ready}
+		context.responses = []model.PgCommand{p, b, r, d, c, re}
 		buf, err := context.responses.Pack()
 		if err != nil {
 			return err
