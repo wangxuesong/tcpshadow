@@ -147,7 +147,9 @@ func TestConnectFilter_Handle(t *testing.T) {
 	// 8s Server
 	go func() {
 		buf := make([]byte, 1024)
-		gbBackend.Read(buf)
+		c, err := gbBackend.Read(buf)
+		assert.Nil(t, err)
+		assert.True(t, c > 0)
 	}()
 
 	go func() {

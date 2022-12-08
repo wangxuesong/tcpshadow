@@ -1,6 +1,7 @@
 package bridge
 
 import (
+	"bytes"
 	"fmt"
 
 	"github.com/jackc/pgproto3"
@@ -44,6 +45,12 @@ func (f *QueryFilter) Handle(ctx services.Context) error {
 
 	if ctx.Data().Forward == model.ServerToClient {
 		//TODO: receive from 8s
+		context, ok := ctx.(*Context)
+		if !ok {
+			return fmt.Errorf("unknown context type: %T", ctx)
+		}
+		readseeker := bytes.NewReader(ctx.Data().Buffer)
+		model.UnpackSqliCommand(readseeker)
 
 		//TODO: 生成查询对应的 Pg 包
 		p := &pgproto3.ParseComplete{}
@@ -59,7 +66,6 @@ func (f *QueryFilter) Handle(ctx services.Context) error {
 				Format:               0,
 			},
 		}}
-		context, ok := ctx.(*Context)
 		response := [][]byte{[]byte("response")}
 		d := &pgproto3.DataRow{Values: response}
 		c := &pgproto3.CommandComplete{CommandTag: "SELECT 1"}

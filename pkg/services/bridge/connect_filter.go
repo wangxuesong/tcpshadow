@@ -126,7 +126,7 @@ func (c *ConnectFilter) Handle(ctx services.Context) error {
 		if !ok {
 			return fmt.Errorf("unknown context type: %T", ctx)
 		}
-		context.backend.Read(ctx.Data().Buffer)
+		bytes.NewReader(ctx.Data().Buffer)
 
 		auth := &pgproto3.Authentication{
 			Type:               pgproto3.AuthTypeOk,
