@@ -63,7 +63,40 @@ func TestConnect(t *testing.T) {
 		assert.True(t, c > 0)
 
 		// send auth ack
-		conn.Write([]byte{88, 11, 03}) //TODO: 将临时数据替换成正式数据
+		response, err := (&model.AuthResponse{
+			Length: 313,
+			Context: []model.Context{{
+				Noname1:   2,
+				Noname2:   0,
+				Noname222: 0,
+				Noname3:   100,
+				Noname4:   101,
+				Noname5:   0,
+				Noname6:   6,
+				Noname7:   108,
+				Noname8:   "000000000000",
+				Noname9:   32,
+				Noname10:  "GBase server00000000000000.FC4G1",
+				Noname11:  35,
+				Noname12:  "SOftware serial number 0000000 0000",
+				Noname13:  18,
+				Noname14:  "Ol_gbasedbt1210_8 mber AAA#B000000",
+				Noname15:  316,
+				Noname16:  0,
+				Noname17:  0,
+				Noname18:  0,
+				Noname19:  0,
+				Noname20:  0,
+				Noname21:  "000000000000000000000000",
+				Noname22:  102,
+				Noname23:  "000000",
+				Noname24:  0,
+				Noname25:  0,
+				Noname26:  0,
+				Noname27:  0,
+			}},
+		}).Pack()
+		conn.Write(response) //TODO: 将临时数据替换成正式数据
 	}
 
 	{
@@ -201,7 +234,7 @@ func TestQueryFilter_Handle(t *testing.T) {
 		assert.Nil(t, err)
 
 		// gbase response
-		prepare, err := (&model.SqliDescribe{
+		buffer, err := (&model.SqliDescribe{
 			StatementType: 2,
 			StatementID:   0,
 			EstimatedCost: 0,
@@ -236,24 +269,24 @@ func TestQueryFilter_Handle(t *testing.T) {
 			},
 		}).Pack()
 		assert.Nil(t, err)
-		prepare, err = (&model.SqliDone{
+		buffer, err = (&model.SqliDone{
 			Warning:  0,
 			Rows:     0,
 			RowID:    0,
 			SerialID: 0,
 		}).Pack()
 		assert.Nil(t, err)
-		prepare, err = (&model.SqliCost{
+		buffer, err = (&model.SqliCost{
 			EstimatedRows: 1,
 			EstimatedIO:   2,
 		}).Pack()
 		assert.Nil(t, err)
-		prepare, err = (&model.SqliEot{}).Pack()
+		buffer, err = (&model.SqliEot{}).Pack()
 		assert.Nil(t, err)
 		//TODO: 将 buffer 改成正式的 sqli 数据
 		ctx.SetData(&model.Data{
 			Forward: model.ServerToClient,
-			Buffer:  prepare,
+			Buffer:  buffer,
 		})
 		err = filter.Handle(ctx)
 		assert.Nil(t, err)

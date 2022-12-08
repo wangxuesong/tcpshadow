@@ -39,7 +39,7 @@ func (c *ConnectFilter) Handle(ctx services.Context) error {
 		// TODO: send auth package to 8s
 		authcommand, err := (&model.AuthRequest{
 			Header: []model.Header{{
-				Length:  331,
+				Length:  253,
 				Noname1: 1,
 				Noname2: 60,
 				Noname3: 0,
@@ -74,7 +74,7 @@ func (c *ConnectFilter) Handle(ctx services.Context) error {
 				Noname13:              0,
 				Noname14:              "o1000000",
 				Noname15:              61,
-				Tlitcp:                "Tlitcp  ",
+				Tlitcp:                "Tlitcp00",
 				Noname16:              1,
 				Noname17:              104,
 				Asf:                   11,
