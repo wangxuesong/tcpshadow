@@ -122,6 +122,12 @@ func (c *ConnectFilter) Handle(ctx services.Context) error {
 
 	if ctx.Data().Forward == model.ServerToClient {
 		//TODO: receive from 8s
+		context, ok := ctx.(*Context)
+		if !ok {
+			return fmt.Errorf("unknown context type: %T", ctx)
+		}
+		context.backend.Read(ctx.Data().Buffer)
+
 		auth := &pgproto3.Authentication{
 			Type:               pgproto3.AuthTypeOk,
 			Salt:               [4]byte{0},
@@ -137,10 +143,6 @@ func (c *ConnectFilter) Handle(ctx services.Context) error {
 			TxStatus: 73,
 		}
 
-		context, ok := ctx.(*Context)
-		if !ok {
-			return fmt.Errorf("unknown context type: %T", ctx)
-		}
 		context.responses = []model.PgCommand{auth, status, key, ready}
 		buf, err := context.responses.Pack()
 		if err != nil {
