@@ -236,7 +236,7 @@ func TestQueryFilter_Handle(t *testing.T) {
 		assert.Nil(t, err)
 
 		// gbase response
-		buffer, err := (&model.SqliDescribe{
+		describe := &model.SqliDescribe{
 			StatementType: 2,
 			StatementID:   0,
 			EstimatedCost: 0,
@@ -269,22 +269,25 @@ func TestQueryFilter_Handle(t *testing.T) {
 				Name:                    "code",
 			},
 			},
-		}).Pack()
+		}
 		assert.Nil(t, err)
-		buffer, err = (&model.SqliDone{
+		done := &model.SqliDone{
 			Warning:  0,
 			Rows:     0,
 			RowID:    0,
 			SerialID: 0,
-		}).Pack()
+		}
 		assert.Nil(t, err)
-		buffer, err = (&model.SqliCost{
+		cost := &model.SqliCost{
 			EstimatedRows: 1,
 			EstimatedIO:   2,
-		}).Pack()
+		}
 		assert.Nil(t, err)
-		buffer, err = (&model.SqliEot{}).Pack()
+		eot := &model.SqliEot{}
 		assert.Nil(t, err)
+		var transmission model.SqliTransmission
+		transmission = []model.SqliCommand{describe, done, cost, eot}
+		buffer, err := transmission.Pack()
 		//TODO: 将 buffer 改成正式的 sqli 数据
 		ctx.SetData(&model.Data{
 			Forward: model.ServerToClient,
