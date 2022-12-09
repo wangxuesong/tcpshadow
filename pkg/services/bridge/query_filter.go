@@ -32,14 +32,17 @@ func (f *QueryFilter) Handle(ctx services.Context) error {
 		}
 
 		// TODO: send sqli package to 8s
-		prepare, err := (&model.SqliPrepare{
+		prepare := &model.SqliPrepare{
 			QMarks: 0,
 			Sql:    "select * from test",
-		}).Pack()
-		prepare, err = (&model.SqliNDescribe{}).Pack()
-		prepare, err = (&model.SqliWantDone{}).Pack()
-		prepare, err = (&model.SqliEot{}).Pack()
-		ctx.Data().Buffer = prepare
+		}
+		ndescribe := &model.SqliNDescribe{}
+		wantdone := &model.SqliWantDone{}
+		eot := &model.SqliEot{}
+		var transmission model.SqliTransmission
+		transmission = []model.SqliCommand{prepare, ndescribe, wantdone, eot}
+		buffer, err := transmission.Pack()
+		ctx.Data().Buffer = buffer
 		context.backend.Write(ctx.Data().Buffer)
 	}
 
