@@ -134,7 +134,8 @@ func (c *ConnectFilter) Handle(ctx services.Context) error {
 	if ctx.Data().Forward == model.ServerToClient {
 		//TODO: receive from 8s
 		reader := bytes.NewReader(ctx.Data().Buffer)
-		model.UnpackSqliTransmission(reader)
+		authreponse := &model.AuthResponse{}
+		authreponse.Unpack(reader)
 
 		auth := &pgproto3.Authentication{
 			Type:               pgproto3.AuthTypeOk,
