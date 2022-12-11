@@ -3,6 +3,7 @@ package model
 import (
 	"bytes"
 	"encoding/binary"
+	//"fmt"
 	"github.com/zhuangsirui/binpacker"
 	"io"
 )
@@ -170,6 +171,7 @@ func (au *AuthRequest) Pack() ([]byte, error) {
 }
 
 func (au *AuthRequest) Unpack(r io.Reader) error {
+	var pad byte
 	unpacker := binpacker.NewUnpacker(binary.BigEndian, r)
 	unpacker.FetchUint16(&au.Length)
 	unpacker.FetchUint8(&au.Noname1)
@@ -180,32 +182,50 @@ func (au *AuthRequest) Unpack(r io.Reader) error {
 	unpacker.FetchUint16(&au.Noname5)
 	unpacker.FetchUint32(&au.Noname6)
 	unpacker.FetchUint16(&au.Ieeemlength)
-	unpacker.FetchString(uint64(au.Ieeemlength)+1, &au.Ieeem)
+	unpacker.FetchString(uint64(au.Ieeemlength-1), &au.Ieeem)
+	unpacker.FetchByte(&pad)
 	unpacker.FetchUint16(&au.Noname7)
-	unpacker.FetchString(12, &au.Sqlexec)
+	unpacker.FetchString(7, &au.Sqlexec)
+	for i := 0; i < 5; i++ {
+		unpacker.FetchByte(&pad)
+	}
 	unpacker.FetchUint16(&au.Versionlength)
-	unpacker.FetchString(uint64(au.Versionlength)+1, &au.Version)
+	unpacker.FetchString(uint64(au.Versionlength-1), &au.Version)
+	unpacker.FetchByte(&pad)
 	unpacker.FetchUint16(&au.Numberlength)
 	unpacker.FetchString(11, &au.Rds)
+	unpacker.FetchByte(&pad)
 	unpacker.FetchUint16(&au.Sqlilength)
-	unpacker.FetchString(uint64(au.Sqlilength)+1, &au.Sqli)
+	unpacker.FetchString(uint64(au.Sqlilength-1), &au.Sqli)
+	unpacker.FetchByte(&pad)
 	unpacker.FetchUint32(&au.Noname8)
 	unpacker.FetchUint32(&au.Noname9)
 	unpacker.FetchUint32(&au.Noname10)
 	unpacker.FetchUint16(&au.Noname11)
 	unpacker.FetchUint16(&au.Clientnamelength)
-	unpacker.FetchString(uint64(au.Clientnamelength)+1, &au.Clientname)
+	unpacker.FetchString(uint64(au.Clientnamelength-1), &au.Clientname)
+	unpacker.FetchByte(&pad)
 	unpacker.FetchUint16(&au.Passwordlength)
-	unpacker.FetchString(uint64(au.Passwordlength), &au.Password)
-	unpacker.FetchString(8, &au.Noname12)
+	for i := 1; i <= 8; i++ {
+		unpacker.FetchByte(&pad)
+	}
+	unpacker.FetchString(uint64(au.Passwordlength-9), &au.Password)
+	unpacker.FetchByte(&pad)
+	unpacker.FetchString(2, &au.Noname12)
+	for i := 0; i < 6; i++ {
+		unpacker.FetchByte(&pad)
+	}
 	unpacker.FetchUint32(&au.Noname13)
-	unpacker.FetchString(8, &au.Tlitcp)
+	unpacker.FetchString(6, &au.Tlitcp)
+	unpacker.FetchByte(&pad)
+	unpacker.FetchByte(&pad)
 	unpacker.FetchUint32(&au.Noname14)
 	unpacker.FetchUint16(&au.Noname15)
 	unpacker.FetchUint16(&au.Asf)
 	unpacker.FetchUint32(&au.Noname16)
 	unpacker.FetchUint16(&au.Servernamelength)
-	unpacker.FetchString(uint64(au.Servernamelength), &au.Servername)
+	unpacker.FetchString(uint64(au.Servernamelength-1), &au.Servername)
+	unpacker.FetchByte(&pad)
 	unpacker.FetchUint16(&au.Noname17)
 	unpacker.FetchUint16(&au.Noname18)
 	unpacker.FetchUint16(&au.Noname19)
@@ -213,27 +233,34 @@ func (au *AuthRequest) Unpack(r io.Reader) error {
 	unpacker.FetchUint16(&au.Noname21)
 	unpacker.FetchUint16(&au.Noname22)
 	unpacker.FetchUint16(&au.Noname23)
-	for _, c := range au.Dpath {
+	for i := 1; i < 6; i++ {
+		var c DPath
 		unpacker.FetchUint16(&c.Dbpathlength)
-		unpacker.FetchString(uint64(c.Dbpathlength), &c.Dbpath)
+		unpacker.FetchString(uint64(c.Dbpathlength-1), &c.Dbpath)
+		unpacker.FetchByte(&pad)
 		unpacker.FetchUint16(&c.Dbpathattributelength)
-		unpacker.FetchString(uint64(c.Dbpathattributelength), &c.Dbpathattribute)
+		unpacker.FetchString(uint64(c.Dbpathattributelength-1), &c.Dbpathattribute)
+		unpacker.FetchByte(&pad)
+		au.Dpath = append(au.Dpath, c)
 	}
 	unpacker.FetchUint16(&au.Noname24)
 	unpacker.FetchUint32(&au.Noname25)
 	unpacker.FetchUint32(&au.Noname26)
 	unpacker.FetchUint32(&au.Longthreadid)
 	unpacker.FetchUint16(&au.Hostnamelength)
-	unpacker.FetchString(uint64(au.Hostnamelength), &au.Noname27)
+	unpacker.FetchString(uint64(au.Hostnamelength-1), &au.Noname27)
+	unpacker.FetchByte(&pad)
 	unpacker.FetchUint16(&au.Noname28)
 	unpacker.FetchUint16(&au.Directorylength)
-	unpacker.FetchString(uint64(au.Directorylength), &au.Directory)
+	unpacker.FetchString(uint64(au.Directorylength-1), &au.Directory)
+	unpacker.FetchByte(&pad)
 	unpacker.FetchUint16(&au.Noname29)
 	unpacker.FetchUint16(&au.Appnamelengthall)
 	unpacker.FetchUint32(&au.Noname30)
 	unpacker.FetchUint32(&au.Noname31)
 	unpacker.FetchUint16(&au.Appnamelength)
-	unpacker.FetchString(uint64(au.Appnamelength), &au.Appname)
+	unpacker.FetchString(uint64(au.Appnamelength-1), &au.Appname)
+	unpacker.FetchByte(&pad)
 	unpacker.FetchUint16(&au.Asceot)
 
 	return unpacker.Error()
@@ -357,3 +384,17 @@ type Context struct {
 	Noname26  uint16
 	Noname27  uint16
 }
+
+//func UnpackAuthRequest(reader io.ReadSeeker) (AuthCommand, error) {
+//	error := "UnpackauthrequestErr"
+//	pos, err := reader.Seek(0, io.SeekCurrent)
+//	if err != nil {
+//		return nil, err
+//	}
+//	err = binary.Read(reader, binary.BigEndian, &error)
+//	if err != nil{
+//		reader.Seek(pos, io.SeekStart)
+//		return nil, err
+//	}
+//
+//}
