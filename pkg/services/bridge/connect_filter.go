@@ -129,45 +129,74 @@ func (c *ConnectFilter) Handle(ctx services.Context) error {
 		}).Pack()
 		ctx.Data().Buffer = authrequest
 		context.backend.Write(ctx.Data().Buffer)
+		ctx.SetMetaData("ConnectStage", "ConnectProtocol")
 	}
 
 	if ctx.Data().Forward == model.ServerToClient {
-		//TODO: receive from 8s
-		reader := bytes.NewReader(ctx.Data().Buffer)
-		authreponse := &model.AuthResponse{}
-		authreponse.Unpack(reader)
-
-		auth := &pgproto3.Authentication{
-			Type:               pgproto3.AuthTypeOk,
-			Salt:               [4]byte{0},
-			SASLAuthMechanisms: nil,
-			SASLData:           nil,
-		}
-		status := &pgproto3.ParameterStatus{Name: "server_version", Value: "9.5"}
-		key := &pgproto3.BackendKeyData{
-			ProcessID: 881103,
-			SecretKey: 1569992916,
-		}
-		ready := &pgproto3.ReadyForQuery{
-			TxStatus: 73,
-		}
-
 		context, ok := ctx.(*Context)
 		if !ok {
 			return fmt.Errorf("unknown context type: %T", ctx)
 		}
-		context.responses = []model.PgCommand{auth, status, key, ready}
-		buf, err := context.responses.Pack()
+
+		//TODO: receive from 8s
+		v, err := context.MetaData("ConnectStage")
 		if err != nil {
 			return err
 		}
+		stage, ok := v.(string)
+		if !ok {
+			return fmt.Errorf("mistake metadata type: %T", v)
+		}
+		reader := bytes.NewReader(ctx.Data().Buffer)
+		switch stage {
+		case "ConnectProtocol":
+			authreponse := &model.AuthResponse{}
+			authreponse.Unpack(reader)
+			//TODO:send protocols
+			ctx.SetMetaData("ConnectStage", "ConnectInfo")
+		case "ConnectInfo":
+			//TODO: receive SqliProtocols
+			//TODO: send SqliInfo
+			ctx.SetMetaData("ConnectStage", "ConnectDbOpen")
+		case "ConnectDbOpen":
+			//TODO: receive SqliEot
+			//TODO: send SqliDBOpen
+			ctx.SetMetaData("ConnectStage", "ConnectDone")
+		case "ConnectDone":
+			//TODO: receive SqliDone
 
-		_, err = context.front.Write(buf)
-		if err != nil {
-			return err
+			// send Authentication to front
+			auth := &pgproto3.Authentication{
+				Type:               pgproto3.AuthTypeOk,
+				Salt:               [4]byte{0},
+				SASLAuthMechanisms: nil,
+				SASLData:           nil,
+			}
+			status := &pgproto3.ParameterStatus{Name: "server_version", Value: "9.5"}
+			key := &pgproto3.BackendKeyData{
+				ProcessID: 881103,
+				SecretKey: 1569992916,
+			}
+			ready := &pgproto3.ReadyForQuery{
+				TxStatus: 73,
+			}
+
+			context.responses = []model.PgCommand{auth, status, key, ready}
+			buf, err := context.responses.Pack()
+			if err != nil {
+				return err
+			}
+
+			_, err = context.front.Write(buf)
+			if err != nil {
+				return err
+			}
+			ctx.SetMetaData("ConnectStage", EndStage)
 		}
 
-		context.state = QueryState
+		if ok && stage == EndStage {
+			context.state = QueryState
+		}
 	}
 
 	return nil

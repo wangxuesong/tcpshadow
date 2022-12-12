@@ -1,6 +1,7 @@
 package bridge
 
 import (
+	"fmt"
 	"io"
 	"log"
 	"net"
@@ -40,12 +41,15 @@ type (
 		state     SessionState
 		requests  model.PgTransmission
 		responses model.PgTransmission
+		metadata  map[string]interface{}
 	}
 )
 
 const (
 	ConnectState SessionState = "Connect"
 	QueryState   SessionState = "Query"
+
+	EndStage string = "EndStage"
 )
 
 func NewBridgeService(config *services.ProxyConfig, index int) services.Service {
@@ -87,6 +91,7 @@ func (b *BridgeService) Run() error {
 		state:     ConnectState,
 		requests:  nil,
 		responses: nil,
+		metadata:  make(map[string]interface{}),
 	}
 	b.currentCtx = ctx
 
@@ -245,5 +250,18 @@ func (c *Context) SessionId() int {
 
 func (c *Context) SetSessionId(id int) error {
 	c.sessionId = id
+	return nil
+}
+
+func (c *Context) MetaData(key string) (interface{}, error) {
+	if v, ok := c.metadata[key]; ok {
+		return v, nil
+	} else {
+		return nil, fmt.Errorf("invalid metadata types %s", key)
+	}
+}
+
+func (c *Context) SetMetaData(key string, value interface{}) error {
+	c.metadata[key] = value
 	return nil
 }

@@ -133,3 +133,13 @@ func (p *ProxyContext) SetSessionId(id int) error {
 	p.sessionId = id
 	return nil
 }
+
+func (p *ProxyContext) MetaData(key string) (interface{}, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (p *ProxyContext) SetMetaData(key string, value interface{}) error {
+	//TODO implement me
+	panic("implement me")
+}

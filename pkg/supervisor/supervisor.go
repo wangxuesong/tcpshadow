@@ -118,7 +118,6 @@ func (s *Supervisor) run() {
 				}
 			case id := <-s.deleteChan:
 				s.deleteClient(id)
-			default:
 			}
 		}
 	}()

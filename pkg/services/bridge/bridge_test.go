@@ -146,6 +146,7 @@ func TestConnectFilter_Handle(t *testing.T) {
 		front:     pgBackend,
 		backend:   gbFront,
 		state:     ConnectState,
+		metadata:  make(map[string]interface{}),
 	}
 	msg := &pgproto.StartupMessage{
 		ProtocolVersion: 196608,
@@ -164,17 +165,46 @@ func TestConnectFilter_Handle(t *testing.T) {
 		Buffer:  buf,
 	})
 
+	server_passed := false
 	// 8s Server
 	go func() {
+		defer func() { server_passed = true }()
 		buf := make([]byte, 1024)
+		// read AuthRequest
 		c, err := gbBackend.Read(buf)
 		assert.Nil(t, err)
 		assert.True(t, c > 0)
+		// read SqliProtocols
+		//c, err = gbBackend.Read(buf)
+		//assert.Nil(t, err)
+		//assert.True(t, c > 0)
 	}()
 
 	go func() {
 		err := filter.Handle(ctx)
 		assert.Nil(t, err)
+		// AuthResponse
+		ctx.SetData(&model.Data{
+			Forward: model.ServerToClient,
+			Buffer:  buf,
+		})
+		err = filter.Handle(ctx)
+		assert.Nil(t, err)
+		// SqliProtocols
+		ctx.SetData(&model.Data{
+			Forward: model.ServerToClient,
+			Buffer:  buf,
+		})
+		err = filter.Handle(ctx)
+		assert.Nil(t, err)
+		// SqliInfo
+		ctx.SetData(&model.Data{
+			Forward: model.ServerToClient,
+			Buffer:  buf,
+		})
+		err = filter.Handle(ctx)
+		assert.Nil(t, err)
+		// SqliDBOpen
 		ctx.SetData(&model.Data{
 			Forward: model.ServerToClient,
 			Buffer:  buf,
@@ -199,6 +229,8 @@ func TestConnectFilter_Handle(t *testing.T) {
 		assert.Nil(t, err)
 		assert.IsType(t, &pgproto.ReadyForQuery{}, msg)
 	}
+
+	assert.True(t, server_passed)
 }
 
 func TestQueryFilter_Handle(t *testing.T) {
