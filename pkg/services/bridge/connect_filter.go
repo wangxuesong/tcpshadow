@@ -152,18 +152,71 @@ func (c *ConnectFilter) Handle(ctx services.Context) error {
 		case "ConnectProtocol":
 			authreponse := &model.AuthResponse{}
 			authreponse.Unpack(reader)
+
 			//TODO:send protocols
+			//protocol := &model.SqliProtocols{
+			//	Protocol:
+			//}
+			protocol := []byte{0, 126, 0, 9, 255, 252, 127, 252, 60, 140, 170, 151, 16, 0}
+			eot, err := (&model.SqliEot{}).Pack()
+			if err != nil {
+				return err
+			}
+			for _, c := range eot {
+				protocol = append(protocol, c)
+			}
+			ctx.Data().Buffer = protocol
+			context.backend.Write(ctx.Data().Buffer)
 			ctx.SetMetaData("ConnectStage", "ConnectInfo")
 		case "ConnectInfo":
 			//TODO: receive SqliProtocols
+			//msgs, err := model.UnpackSqliTransmission(reader)
+			//protocol := msgs[0]
+			//eott := msgs[1]
+			//println(protocol)
+			//println(eott)
+
 			//TODO: send SqliInfo
+			info := &model.SqliInfo{}
+			eot := &model.SqliEot{}
+			var transmission model.SqliTransmission
+			transmission = []model.SqliCommand{info, eot}
+			buf, err := transmission.Pack()
+			if err != nil {
+				return err
+			}
+			ctx.Data().Buffer = buf
+			context.backend.Write(ctx.Data().Buffer)
 			ctx.SetMetaData("ConnectStage", "ConnectDbOpen")
 		case "ConnectDbOpen":
 			//TODO: receive SqliEot
+			//eot := &model.SqliEot{}
+			//eot.Unpack(reader)
+
 			//TODO: send SqliDBOpen
+			deopen := &model.SqliDBOpen{
+				DBName: "test",
+				Foo:    0,
+			}
+			eot := &model.SqliEot{}
+			var transmission model.SqliTransmission
+			transmission = []model.SqliCommand{deopen, eot}
+			buf, err := transmission.Pack()
+			if err != nil {
+				return err
+			}
+			ctx.Data().Buffer = buf
+			context.backend.Write(ctx.Data().Buffer)
 			ctx.SetMetaData("ConnectStage", "ConnectDone")
 		case "ConnectDone":
 			//TODO: receive SqliDone
+			//msgs, err := model.UnpackSqliTransmission(reader)
+			//done := msgs[0]
+			//cost := msgs[1]
+			//eot := msgs[2]
+			//println(done)
+			//println(cost)
+			//println(eot)
 
 			// send Authentication to front
 			auth := &pgproto3.Authentication{
