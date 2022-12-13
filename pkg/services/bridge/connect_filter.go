@@ -154,30 +154,36 @@ func (c *ConnectFilter) Handle(ctx services.Context) error {
 			authreponse.Unpack(reader)
 
 			//TODO:send protocols
-			//protocol := &model.SqliProtocols{
-			//	Protocol:
-			//}
-			protocol := []byte{0, 126, 0, 9, 255, 252, 127, 252, 60, 140, 170, 151, 16, 0}
-			eot, err := (&model.SqliEot{}).Pack()
+			protocol := &model.SqliProtocols{
+				Protocol: []byte{0xff, 0xfc, 0x7f, 0xfc, 0x3c, 0x8c, 0xaa, 0x97, 0x10},
+			}
+			eot := &model.SqliEot{}
+			var transmission model.SqliTransmission
+			transmission = []model.SqliCommand{protocol, eot}
+			buf, err := transmission.Pack()
 			if err != nil {
 				return err
 			}
-			for _, c := range eot {
-				protocol = append(protocol, c)
-			}
-			ctx.Data().Buffer = protocol
+			ctx.Data().Buffer = buf
 			context.backend.Write(ctx.Data().Buffer)
 			ctx.SetMetaData("ConnectStage", "ConnectInfo")
 		case "ConnectInfo":
 			//TODO: receive SqliProtocols
-			//msgs, err := model.UnpackSqliTransmission(reader)
-			//protocol := msgs[0]
-			//eott := msgs[1]
-			//println(protocol)
-			//println(eott)
+			_, err := model.UnpackSqliTransmission(reader)
 
 			//TODO: send SqliInfo
-			info := &model.SqliInfo{}
+			info := &model.SqliInfo{
+				MessageType: 6,
+				Length:      38,
+				InfoEnv: model.InfoEnv{
+					NameLength:  12,
+					ValueLength: 4,
+					Env: map[string]string{
+						"DBTEMP":      "/tmp",
+						"SUBQCACHESZ": "10",
+					},
+				},
+			}
 			eot := &model.SqliEot{}
 			var transmission model.SqliTransmission
 			transmission = []model.SqliCommand{info, eot}
@@ -190,8 +196,7 @@ func (c *ConnectFilter) Handle(ctx services.Context) error {
 			ctx.SetMetaData("ConnectStage", "ConnectDbOpen")
 		case "ConnectDbOpen":
 			//TODO: receive SqliEot
-			//eot := &model.SqliEot{}
-			//eot.Unpack(reader)
+			_, err := model.UnpackSqliTransmission(reader)
 
 			//TODO: send SqliDBOpen
 			deopen := &model.SqliDBOpen{
@@ -210,13 +215,7 @@ func (c *ConnectFilter) Handle(ctx services.Context) error {
 			ctx.SetMetaData("ConnectStage", "ConnectDone")
 		case "ConnectDone":
 			//TODO: receive SqliDone
-			//msgs, err := model.UnpackSqliTransmission(reader)
-			//done := msgs[0]
-			//cost := msgs[1]
-			//eot := msgs[2]
-			//println(done)
-			//println(cost)
-			//println(eot)
+			_, err := model.UnpackSqliTransmission(reader)
 
 			// send Authentication to front
 			auth := &pgproto3.Authentication{
