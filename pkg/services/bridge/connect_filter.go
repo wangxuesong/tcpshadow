@@ -246,6 +246,14 @@ func (c *ConnectFilter) Handle(ctx services.Context) error {
 			ctx.SetMetaData("ConnectStage", EndStage)
 		}
 
+		v, err = context.MetaData("ConnectStage")
+		if err != nil {
+			return err
+		}
+		stage, ok = v.(string)
+		if !ok {
+			return fmt.Errorf("mistake metadata type: %T", v)
+		}
 		if ok && stage == EndStage {
 			context.state = QueryState
 		}
