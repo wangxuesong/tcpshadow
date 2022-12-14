@@ -19,7 +19,10 @@ func NewQueryFilter() *QueryFilter {
 func (f *QueryFilter) Handle(ctx services.Context) error {
 	if ctx.Data().Forward == model.ClientToServer {
 		parser := model.NewPgClientParser()
-		parser.Append(ctx.Data().Buffer)
+		_, err := parser.Append(ctx.Data().Buffer)
+		if err != nil {
+			return err
+		}
 		msg, err := parser.ParseMessage()
 		if err != nil {
 			return err
@@ -43,8 +46,14 @@ func (f *QueryFilter) Handle(ctx services.Context) error {
 		transmission = []model.SqliCommand{prepare, ndescribe, wantdone, eot}
 		buffer, err := transmission.Pack()
 		ctx.Data().Buffer = buffer
-		context.backend.Write(ctx.Data().Buffer)
-		ctx.SetMetaData("QueryStage", "QueryPrepareDone")
+		_, err = context.backend.Write(ctx.Data().Buffer)
+		if err != nil {
+			return err
+		}
+		err = ctx.SetMetaData("QueryStage", "QueryPrepareDone")
+		if err != nil {
+			return err
+		}
 	}
 
 	if ctx.Data().Forward == model.ServerToClient {
@@ -85,8 +94,14 @@ func (f *QueryFilter) Handle(ctx services.Context) error {
 				return err
 			}
 			ctx.Data().Buffer = buf
-			context.backend.Write(ctx.Data().Buffer)
-			ctx.SetMetaData("QueryStage", "QueryIDescribeDone")
+			_, err = context.backend.Write(ctx.Data().Buffer)
+			if err != nil {
+				return err
+			}
+			err = ctx.SetMetaData("QueryStage", "QueryIDescribeDone")
+			if err != nil {
+				return err
+			}
 		case "":
 			//TODO: receive Sqli
 			_, err := model.UnpackSqliTransmission(reader)
@@ -113,8 +128,14 @@ func (f *QueryFilter) Handle(ctx services.Context) error {
 				return err
 			}
 			ctx.Data().Buffer = buf
-			context.backend.Write(ctx.Data().Buffer)
-			ctx.SetMetaData("QueryStage", "QueryOpen")
+			_, err = context.backend.Write(ctx.Data().Buffer)
+			if err != nil {
+				return err
+			}
+			err = ctx.SetMetaData("QueryStage", "QueryOpen")
+			if err != nil {
+				return err
+			}
 		case "QueryOpen":
 			//TODO: receive Sqli
 			_, err := model.UnpackSqliTransmission(reader)
@@ -157,8 +178,14 @@ func (f *QueryFilter) Handle(ctx services.Context) error {
 				return err
 			}
 			ctx.Data().Buffer = buf
-			context.backend.Write(ctx.Data().Buffer)
-			ctx.SetMetaData("QueryStage", "QueryDone")
+			_, err = context.backend.Write(ctx.Data().Buffer)
+			if err != nil {
+				return err
+			}
+			err = ctx.SetMetaData("QueryStage", "QueryDone")
+			if err != nil {
+				return err
+			}
 		case "QueryIDescribeDone":
 			//TODO: receive Sqli
 			_, err := model.UnpackSqliTransmission(reader)
@@ -182,8 +209,14 @@ func (f *QueryFilter) Handle(ctx services.Context) error {
 				return err
 			}
 			ctx.Data().Buffer = buf
-			context.backend.Write(ctx.Data().Buffer)
-			ctx.SetMetaData("QueryStage", "QueryExecuteDone")
+			_, err = context.backend.Write(ctx.Data().Buffer)
+			if err != nil {
+				return err
+			}
+			err = ctx.SetMetaData("QueryStage", "QueryExecuteDone")
+			if err != nil {
+				return err
+			}
 		case "QueryExecuteDone":
 			//TODO: receive Sqli
 			_, err := model.UnpackSqliTransmission(reader)
@@ -204,8 +237,14 @@ func (f *QueryFilter) Handle(ctx services.Context) error {
 				return err
 			}
 			ctx.Data().Buffer = buf
-			context.backend.Write(ctx.Data().Buffer)
-			ctx.SetMetaData("QueryStage", "QueryRelease")
+			_, err = context.backend.Write(ctx.Data().Buffer)
+			if err != nil {
+				return err
+			}
+			err = ctx.SetMetaData("QueryStage", "QueryRelease")
+			if err != nil {
+				return err
+			}
 		case "QueryDone":
 			//TODO: receive Sqli
 			_, err := model.UnpackSqliTransmission(reader)
@@ -241,7 +280,10 @@ func (f *QueryFilter) Handle(ctx services.Context) error {
 			if err != nil {
 				return err
 			}
-			ctx.SetMetaData("QueryStage", EndStage)
+			err = ctx.SetMetaData("QueryStage", EndStage)
+			if err != nil {
+				return err
+			}
 
 			if ok && stage == EndStage {
 				context.state = QueryState
@@ -269,7 +311,10 @@ func (f *QueryFilter) Handle(ctx services.Context) error {
 			if err != nil {
 				return err
 			}
-			ctx.SetMetaData("QueryStage", EndStage)
+			err = ctx.SetMetaData("QueryStage", EndStage)
+			if err != nil {
+				return err
+			}
 
 			if ok && stage == EndStage {
 				context.state = QueryState

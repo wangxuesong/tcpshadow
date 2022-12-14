@@ -128,8 +128,14 @@ func (c *ConnectFilter) Handle(ctx services.Context) error {
 			Asceot:           127,
 		}).Pack()
 		ctx.Data().Buffer = authrequest
-		context.backend.Write(ctx.Data().Buffer)
-		ctx.SetMetaData("ConnectStage", "ConnectProtocol")
+		_, err = context.backend.Write(ctx.Data().Buffer)
+		if err != nil {
+			return err
+		}
+		err = ctx.SetMetaData("ConnectStage", "ConnectProtocol")
+		if err != nil {
+			return err
+		}
 	}
 
 	if ctx.Data().Forward == model.ServerToClient {
@@ -151,7 +157,10 @@ func (c *ConnectFilter) Handle(ctx services.Context) error {
 		switch stage {
 		case "ConnectProtocol":
 			authreponse := &model.AuthResponse{}
-			authreponse.Unpack(reader)
+			err = authreponse.Unpack(reader)
+			if err != nil {
+				return err
+			}
 
 			//TODO:send protocols
 			protocol := &model.SqliProtocols{
@@ -165,8 +174,14 @@ func (c *ConnectFilter) Handle(ctx services.Context) error {
 				return err
 			}
 			ctx.Data().Buffer = buf
-			context.backend.Write(ctx.Data().Buffer)
-			ctx.SetMetaData("ConnectStage", "ConnectInfo")
+			_, err = context.backend.Write(ctx.Data().Buffer)
+			if err != nil {
+				return err
+			}
+			err = ctx.SetMetaData("ConnectStage", "ConnectInfo")
+			if err != nil {
+				return err
+			}
 		case "ConnectInfo":
 			//TODO: receive SqliProtocols
 			_, err := model.UnpackSqliTransmission(reader)
@@ -192,8 +207,14 @@ func (c *ConnectFilter) Handle(ctx services.Context) error {
 				return err
 			}
 			ctx.Data().Buffer = buf
-			context.backend.Write(ctx.Data().Buffer)
-			ctx.SetMetaData("ConnectStage", "ConnectDbOpen")
+			_, err = context.backend.Write(ctx.Data().Buffer)
+			if err != nil {
+				return err
+			}
+			err = ctx.SetMetaData("ConnectStage", "ConnectDbOpen")
+			if err != nil {
+				return err
+			}
 		case "ConnectDbOpen":
 			//TODO: receive SqliEot
 			_, err := model.UnpackSqliTransmission(reader)
@@ -211,8 +232,14 @@ func (c *ConnectFilter) Handle(ctx services.Context) error {
 				return err
 			}
 			ctx.Data().Buffer = buf
-			context.backend.Write(ctx.Data().Buffer)
-			ctx.SetMetaData("ConnectStage", "ConnectDone")
+			_, err = context.backend.Write(ctx.Data().Buffer)
+			if err != nil {
+				return err
+			}
+			err = ctx.SetMetaData("ConnectStage", "ConnectDone")
+			if err != nil {
+				return err
+			}
 		case "ConnectDone":
 			//TODO: receive SqliDone
 			_, err := model.UnpackSqliTransmission(reader)
@@ -243,7 +270,10 @@ func (c *ConnectFilter) Handle(ctx services.Context) error {
 			if err != nil {
 				return err
 			}
-			ctx.SetMetaData("ConnectStage", EndStage)
+			err = ctx.SetMetaData("ConnectStage", EndStage)
+			if err != nil {
+				return err
+			}
 		}
 
 		v, err = context.MetaData("ConnectStage")
