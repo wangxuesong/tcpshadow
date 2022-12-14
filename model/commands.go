@@ -1348,8 +1348,8 @@ func (*SqliCIdescribe) Unpack(r io.Reader) error {
 
 // SqliIdescribe SQ_IDESCEIBE
 type SqliIdescribe struct {
-	inputfields uint16
-	fields      []Sqlifields
+	Inputfields uint16
+	Fields      []Sqlifields
 }
 
 func (sq *SqliIdescribe) Command() uint16 {
@@ -1359,14 +1359,14 @@ func (sq *SqliIdescribe) Command() uint16 {
 func (sq *SqliIdescribe) Pack() ([]byte, error) {
 	buffer := new(bytes.Buffer)
 	packer := binpacker.NewPacker(binary.BigEndian, buffer)
-	packer.PushUint16(sq.Command()).PushUint16(sq.inputfields).PushUint16(uint16(len(sq.fields)))
-	for _, c := range sq.fields {
+	packer.PushUint16(sq.Command()).PushUint16(sq.Inputfields).PushUint16(uint16(len(sq.Fields)))
+	for _, c := range sq.Fields {
 		packer.PushUint16(c.Type)
 		packer.PushUint32(c.ExtendID)
 		packer.PushUint16(c.OwnerNameLength)
 		packer.PushUint16(c.ExtendTypeNameLength)
 		packer.PushUint16(c.PassByReferenceFlag)
-		packer.PushUint16(c.alignment)
+		packer.PushUint16(c.Alignment)
 		packer.PushUint32(c.SourceType)
 		packer.PushUint32(c.Length)
 	}
@@ -1377,8 +1377,8 @@ func (sq *SqliIdescribe) Unpack(r io.Reader) error {
 	unpacker := binpacker.NewUnpacker(binary.BigEndian, r)
 	var count uint16
 	unpacker.FetchUint16(&count)
-	unpacker.FetchUint16(&sq.inputfields)
-	sq.fields = make([]Sqlifields, 0, count)
+	unpacker.FetchUint16(&sq.Inputfields)
+	sq.Fields = make([]Sqlifields, 0, count)
 	for i := 0; i < int(count); i++ {
 		var c Sqlifields
 		unpacker.FetchUint16(&c.Type)
@@ -1386,10 +1386,10 @@ func (sq *SqliIdescribe) Unpack(r io.Reader) error {
 		unpacker.FetchUint16(&c.OwnerNameLength)
 		unpacker.FetchUint16(&c.ExtendTypeNameLength)
 		unpacker.FetchUint16(&c.PassByReferenceFlag)
-		unpacker.FetchUint16(&c.alignment)
+		unpacker.FetchUint16(&c.Alignment)
 		unpacker.FetchUint32(&c.SourceType)
 		unpacker.FetchUint32(&c.Length)
-		sq.fields = append(sq.fields, c)
+		sq.Fields = append(sq.Fields, c)
 	}
 	return unpacker.Error()
 }
@@ -1400,7 +1400,7 @@ type Sqlifields struct {
 	OwnerNameLength      uint16
 	ExtendTypeNameLength uint16
 	PassByReferenceFlag  uint16
-	alignment            uint16
+	Alignment            uint16
 	SourceType           uint32
 	Length               uint32
 }

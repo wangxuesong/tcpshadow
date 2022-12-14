@@ -2,14 +2,13 @@ package bridge
 
 import (
 	"bytes"
-	"net"
-	"sync"
-	"testing"
-
 	pgproto "github.com/jackc/pgproto3"
 	"github.com/stretchr/testify/assert"
 	"github.com/wangxuesong/tcpshadow/model"
 	"github.com/wangxuesong/tcpshadow/pkg/services"
+	"net"
+	"sync"
+	"testing"
 )
 
 func TestConnect(t *testing.T) {
@@ -343,7 +342,8 @@ func TestQueryFilter_Handle(t *testing.T) {
 		sessionId: 0,
 		front:     pgBackend,
 		backend:   gbFront,
-		state:     QueryState,
+		state:     ConnectState,
+		metadata:  make(map[string]interface{}),
 	}
 	buffer := (&pgproto.Parse{
 		Name:          "",
@@ -370,19 +370,58 @@ func TestQueryFilter_Handle(t *testing.T) {
 		Forward: model.ClientToServer,
 		Buffer:  buffer,
 	})
+
+	server_passed := false
 	// 8s Server
 	go func() {
+		defer func() { server_passed = true }()
 		buf := make([]byte, 1024)
 		c, err := gbBackend.Read(buf)
 		assert.Nil(t, err)
 		assert.True(t, c > 0)
-		//readseeker := bytes.NewReader(buf)
-		//msgs, err := model.UnpackSqliTransmission(readseeker)
-		//assert.Nil(t, nil)
-		//assert.IsType(t, &model.SqliPrepare{}, msgs[1:2])
-		//assert.IsType(t, &model.SqliNDescribe{}, msgs[2:3])
-		//assert.IsType(t, &model.SqliWantDone{}, msgs[3:4])
-		//assert.IsType(t, &model.SqliEot{}, msgs[4:5])
+		buff := buf[:c]
+		readseeker := bytes.NewReader(buff)
+		msgs, err := model.UnpackSqliTransmission(readseeker)
+		assert.Nil(t, err)
+		assert.IsType(t, &model.SqliPrepare{}, msgs[0])
+		assert.IsType(t, &model.SqliNDescribe{}, msgs[1])
+		assert.IsType(t, &model.SqliWantDone{}, msgs[2])
+		assert.IsType(t, &model.SqliEot{}, msgs[3])
+
+		c, err = gbBackend.Read(buf)
+		assert.Nil(t, err)
+		assert.True(t, c > 0)
+		buff = buf[:c]
+		readseeker = bytes.NewReader(buff)
+		msgs, err = model.UnpackSqliTransmission(readseeker)
+		assert.Nil(t, err)
+		assert.IsType(t, &model.SqliID{}, msgs[0])
+		assert.IsType(t, &model.SqliCIdescribe{}, msgs[1])
+		assert.IsType(t, &model.SqliEot{}, msgs[2])
+
+		c, err = gbBackend.Read(buf)
+		assert.Nil(t, err)
+		assert.True(t, c > 0)
+		buff = buf[:c]
+		readseeker = bytes.NewReader(buff)
+		msgs, err = model.UnpackSqliTransmission(readseeker)
+		assert.Nil(t, err)
+		assert.IsType(t, &model.SqliID{}, msgs[0])
+		assert.IsType(t, &model.SqliBind{}, msgs[1])
+		assert.IsType(t, &model.SqliExecute{}, msgs[2])
+		assert.IsType(t, &model.SqliEot{}, msgs[3])
+
+		c, err = gbBackend.Read(buf)
+		assert.Nil(t, err)
+		assert.True(t, c > 0)
+		buff = buf[:c]
+		readseeker = bytes.NewReader(buff)
+		msgs, err = model.UnpackSqliTransmission(readseeker)
+		assert.Nil(t, err)
+		assert.IsType(t, &model.SqliID{}, msgs[0])
+		assert.IsType(t, &model.SqliRelease{}, msgs[1])
+		assert.IsType(t, &model.SqliEot{}, msgs[2])
+
 	}()
 
 	go func() {
@@ -424,24 +463,86 @@ func TestQueryFilter_Handle(t *testing.T) {
 			},
 			},
 		}
-		assert.Nil(t, err)
 		done := &model.SqliDone{
 			Warning:  0,
 			Rows:     0,
 			RowID:    0,
 			SerialID: 0,
 		}
-		assert.Nil(t, err)
 		cost := &model.SqliCost{
 			EstimatedRows: 1,
 			EstimatedIO:   2,
 		}
-		assert.Nil(t, err)
 		eot := &model.SqliEot{}
-		assert.Nil(t, err)
 		var transmission model.SqliTransmission
 		transmission = []model.SqliCommand{describe, done, cost, eot}
 		buffer, err := transmission.Pack()
+		assert.Nil(t, err)
+		//TODO: 将 buffer 改成正式的 sqli 数据
+		ctx.SetData(&model.Data{
+			Forward: model.ServerToClient,
+			Buffer:  buffer,
+		})
+		err = filter.Handle(ctx)
+		assert.Nil(t, err)
+
+		idescribe := &model.SqliIdescribe{
+			Inputfields: 2,
+			Fields: []model.Sqlifields{{
+				Type:                 2,
+				ExtendID:             0,
+				OwnerNameLength:      0,
+				ExtendTypeNameLength: 0,
+				PassByReferenceFlag:  0,
+				Alignment:            0,
+				SourceType:           0,
+				Length:               4,
+			}, {
+				Type:                 2,
+				ExtendID:             0,
+				OwnerNameLength:      0,
+				ExtendTypeNameLength: 0,
+				PassByReferenceFlag:  0,
+				Alignment:            0,
+				SourceType:           0,
+				Length:               4,
+			}},
+		}
+		transmission = []model.SqliCommand{idescribe, eot}
+		buffer, err = transmission.Pack()
+		assert.Nil(t, err)
+		//TODO: 将 buffer 改成正式的 sqli 数据
+		ctx.SetData(&model.Data{
+			Forward: model.ServerToClient,
+			Buffer:  buffer,
+		})
+		err = filter.Handle(ctx)
+		assert.Nil(t, err)
+
+		done = &model.SqliDone{
+			Warning:  0,
+			Rows:     0,
+			RowID:    0,
+			SerialID: 0,
+		}
+		cost = &model.SqliCost{
+			EstimatedRows: 1,
+			EstimatedIO:   2,
+		}
+		transmission = []model.SqliCommand{done, cost, eot}
+		buffer, err = transmission.Pack()
+		assert.Nil(t, err)
+		//TODO: 将 buffer 改成正式的 sqli 数据
+		ctx.SetData(&model.Data{
+			Forward: model.ServerToClient,
+			Buffer:  buffer,
+		})
+		err = filter.Handle(ctx)
+		assert.Nil(t, err)
+
+		transmission = []model.SqliCommand{eot}
+		buffer, err = transmission.Pack()
+		assert.Nil(t, err)
 		//TODO: 将 buffer 改成正式的 sqli 数据
 		ctx.SetData(&model.Data{
 			Forward: model.ServerToClient,
@@ -463,10 +564,13 @@ func TestQueryFilter_Handle(t *testing.T) {
 		assert.IsType(t, &pgproto.BindComplete{}, msg)
 		msg, err = parse.Receive()
 		assert.Nil(t, err)
-		assert.IsType(t, &pgproto.RowDescription{}, msg)
-		msg, err = parse.Receive()
-		assert.Nil(t, err)
-		assert.IsType(t, &pgproto.DataRow{}, msg)
+		assert.IsType(t, &pgproto.NoData{}, msg)
+		//msg, err = parse.Receive()
+		//assert.Nil(t, err)
+		//assert.IsType(t, &pgproto.RowDescription{}, msg)
+		//msg, err = parse.Receive()
+		//assert.Nil(t, err)
+		//assert.IsType(t, &pgproto.DataRow{}, msg)
 		msg, err = parse.Receive()
 		assert.Nil(t, err)
 		assert.IsType(t, &pgproto.CommandComplete{}, msg)
@@ -474,4 +578,5 @@ func TestQueryFilter_Handle(t *testing.T) {
 		assert.Nil(t, err)
 		assert.IsType(t, &pgproto.ReadyForQuery{}, msg)
 	}
+	assert.True(t, server_passed)
 }
