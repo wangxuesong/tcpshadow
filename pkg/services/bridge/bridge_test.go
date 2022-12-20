@@ -347,7 +347,7 @@ func TestQueryFilter_Handle(t *testing.T) {
 	}
 	buffer := (&pgproto.Parse{
 		Name:          "",
-		Query:         "selet * from test",
+		Query:         "select * from test",
 		ParameterOIDs: nil,
 	}).Encode(nil)
 	buffer = (&pgproto.Bind{
@@ -383,7 +383,10 @@ func TestQueryFilter_Handle(t *testing.T) {
 		readseeker := bytes.NewReader(buff)
 		msgs, err := model.UnpackSqliTransmission(readseeker)
 		assert.Nil(t, err)
-		assert.IsType(t, &model.SqliPrepare{}, msgs[0])
+		assert.Equal(t, &model.SqliPrepare{
+			QMarks: 0,
+			Sql:    "select * from test",
+		}, msgs[0])
 		assert.IsType(t, &model.SqliNDescribe{}, msgs[1])
 		assert.IsType(t, &model.SqliWantDone{}, msgs[2])
 		assert.IsType(t, &model.SqliEot{}, msgs[3])
@@ -519,6 +522,10 @@ func TestQueryFilter_Handle(t *testing.T) {
 		err = filter.Handle(ctx)
 		assert.Nil(t, err)
 
+		insertdone := &model.SqliInsertDone{
+			Serial8:   1,
+			BigSerial: 2,
+		}
 		done = &model.SqliDone{
 			Warning:  0,
 			Rows:     0,
@@ -529,7 +536,7 @@ func TestQueryFilter_Handle(t *testing.T) {
 			EstimatedRows: 1,
 			EstimatedIO:   2,
 		}
-		transmission = []model.SqliCommand{done, cost, eot}
+		transmission = []model.SqliCommand{insertdone, done, cost, eot}
 		buffer, err = transmission.Pack()
 		assert.Nil(t, err)
 		//TODO: 将 buffer 改成正式的 sqli 数据

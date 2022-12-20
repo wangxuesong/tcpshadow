@@ -27,6 +27,53 @@ func (f *QueryFilter) Handle(ctx services.Context) error {
 		if err != nil {
 			return err
 		}
+		buf := make([]byte, 2048)
+		//parse
+		buf = msg[0].Encode(nil)
+		parse := &pgproto3.Parse{}
+		err = parse.Decode(buf[5:])
+		if err != nil {
+			return err
+		}
+		sql := parse.Query
+		paranumber := len(parse.ParameterOIDs)
+		//bind
+		buf = msg[1].Encode(nil)
+		bind := &pgproto3.Bind{}
+		err = bind.Decode(buf[5:])
+		if err != nil {
+			return err
+		}
+		_ = bind.DestinationPortal
+		_ = bind.PreparedStatement
+		_ = bind.ParameterFormatCodes
+		_ = bind.Parameters
+		_ = bind.ResultFormatCodes
+		//describe
+		buf = msg[2].Encode(nil)
+		describe := &pgproto3.Describe{}
+		err = describe.Decode(buf[5:])
+		if err != nil {
+			return err
+		}
+		_ = describe.ObjectType
+		_ = describe.Name
+		//execute
+		buf = msg[3].Encode(nil)
+		execute := &pgproto3.Execute{}
+		err = execute.Decode(buf[5:])
+		if err != nil {
+			return err
+		}
+		_ = execute.Portal
+		_ = execute.MaxRows
+		//sync
+		buf = msg[4].Encode(nil)
+		sync := &pgproto3.Sync{}
+		err = sync.Decode(buf[5:])
+		if err != nil {
+			return err
+		}
 
 		context, ok := ctx.(*Context)
 		context.requests = msg
@@ -36,8 +83,8 @@ func (f *QueryFilter) Handle(ctx services.Context) error {
 
 		// TODO: send sqli package to 8s
 		prepare := &model.SqliPrepare{
-			QMarks: 0,
-			Sql:    "select * from test",
+			QMarks: uint16(paranumber),
+			Sql:    sql,
 		}
 		ndescribe := &model.SqliNDescribe{}
 		wantdone := &model.SqliWantDone{}
@@ -76,10 +123,60 @@ func (f *QueryFilter) Handle(ctx services.Context) error {
 		switch stage {
 		case "QueryPrepareDone":
 			//TODO: receive Sqli
-			_, err := model.UnpackSqliTransmission(reader)
+			msgs, err := model.UnpackSqliTransmission(reader)
 			if err != nil {
 				return err
 			}
+			buf := make([]byte, 1024)
+
+			//describe
+			buf, err = msgs[0].Pack()
+			if err != nil {
+				return err
+			}
+			reader := bytes.NewReader(buf[2:])
+			describe := &model.SqliDescribe{}
+			err = describe.Unpack(reader)
+			if err != nil {
+				return err
+			}
+			_ = describe.StringTable
+			_ = describe.StatementType
+			_ = describe.StatementID
+			_ = describe.EstimatedCost
+			_ = describe.TupleSize
+			_ = describe.CountOfFields
+			_ = describe.StringTable
+			_ = describe.Fields
+
+			//done
+			buf, err = msgs[1].Pack()
+			if err != nil {
+				return err
+			}
+			reader = bytes.NewReader(buf[2:])
+			done := &model.SqliDone{}
+			err = done.Unpack(reader)
+			if err != nil {
+				return err
+			}
+			_ = done.Rows
+
+			//cost
+			buf, err = msgs[2].Pack()
+			if err != nil {
+				return err
+			}
+			reader = bytes.NewReader(buf[2:])
+			cost := &model.SqliCost{}
+			err = cost.Unpack(reader)
+			if err != nil {
+				return err
+			}
+			_ = cost.EstimatedRows
+
+			//eot
+			buf, err = msgs[3].Pack()
 
 			//TODO: send Sqli
 			id := &model.SqliID{
@@ -89,7 +186,7 @@ func (f *QueryFilter) Handle(ctx services.Context) error {
 			eot := &model.SqliEot{}
 			var transmission model.SqliTransmission
 			transmission = []model.SqliCommand{id, cidescribe, eot}
-			buf, err := transmission.Pack()
+			buf, err = transmission.Pack()
 			if err != nil {
 				return err
 			}
@@ -104,10 +201,28 @@ func (f *QueryFilter) Handle(ctx services.Context) error {
 			}
 		case "":
 			//TODO: receive Sqli
-			_, err := model.UnpackSqliTransmission(reader)
+			msgs, err := model.UnpackSqliTransmission(reader)
 			if err != nil {
 				return err
 			}
+			buf := make([]byte, 1024)
+
+			//idescribe
+			buf, err = msgs[0].Pack()
+			if err != nil {
+				return err
+			}
+			reader = bytes.NewReader(buf[2:])
+			idescribe := &model.SqliIdescribe{}
+			err = idescribe.Unpack(reader)
+			if err != nil {
+				return err
+			}
+			_ = idescribe.Inputfields
+			_ = idescribe.Fields
+
+			//eot
+			_ = msgs[1]
 
 			//TODO: send Sqli
 			id := &model.SqliID{
@@ -123,7 +238,7 @@ func (f *QueryFilter) Handle(ctx services.Context) error {
 			eot := &model.SqliEot{}
 			var transmission model.SqliTransmission
 			transmission = []model.SqliCommand{id, curname, bind, open, eot}
-			buf, err := transmission.Pack()
+			buf, err = transmission.Pack()
 			if err != nil {
 				return err
 			}
@@ -188,10 +303,28 @@ func (f *QueryFilter) Handle(ctx services.Context) error {
 			}
 		case "QueryIDescribeDone":
 			//TODO: receive Sqli
-			_, err := model.UnpackSqliTransmission(reader)
+			msgs, err := model.UnpackSqliTransmission(reader)
 			if err != nil {
 				return err
 			}
+			buf := make([]byte, 1024)
+
+			//idescribe
+			buf, err = msgs[0].Pack()
+			if err != nil {
+				return err
+			}
+			reader = bytes.NewReader(buf[2:])
+			idescribe := &model.SqliIdescribe{}
+			err = idescribe.Unpack(reader)
+			if err != nil {
+				return err
+			}
+			_ = idescribe.Inputfields
+			_ = idescribe.Fields
+
+			//eot
+			_ = msgs[1]
 
 			//TODO: send Sqli
 			id := &model.SqliID{
@@ -204,7 +337,7 @@ func (f *QueryFilter) Handle(ctx services.Context) error {
 			eot := &model.SqliEot{}
 			var transmission model.SqliTransmission
 			transmission = []model.SqliCommand{id, bind, execute, eot}
-			buf, err := transmission.Pack()
+			buf, err = transmission.Pack()
 			if err != nil {
 				return err
 			}
@@ -219,10 +352,54 @@ func (f *QueryFilter) Handle(ctx services.Context) error {
 			}
 		case "QueryExecuteDone":
 			//TODO: receive Sqli
-			_, err := model.UnpackSqliTransmission(reader)
+			msgs, err := model.UnpackSqliTransmission(reader)
 			if err != nil {
 				return err
 			}
+			buf := make([]byte, 1024)
+
+			//insertdone
+			buf, err = msgs[0].Pack()
+			if err != nil {
+				return err
+			}
+			reader = bytes.NewReader(buf[2:])
+			insertdone := &model.SqliInsertDone{}
+			err = insertdone.Unpack(reader)
+			if err != nil {
+				return err
+			}
+			_ = insertdone.Serial8
+			_ = insertdone.BigSerial
+
+			//done
+			buf, err = msgs[1].Pack()
+			if err != nil {
+				return err
+			}
+			reader = bytes.NewReader(buf[2:])
+			done := &model.SqliDone{}
+			err = done.Unpack(reader)
+			if err != nil {
+				return err
+			}
+			_ = done.Rows
+
+			//cost
+			buf, err = msgs[2].Pack()
+			if err != nil {
+				return err
+			}
+			reader = bytes.NewReader(buf[2:])
+			cost := &model.SqliCost{}
+			err = cost.Unpack(reader)
+			if err != nil {
+				return err
+			}
+			_ = cost.EstimatedRows
+
+			//eot
+			_ = msgs[3]
 
 			//TODO: send Sqli
 			id := &model.SqliID{
@@ -232,7 +409,7 @@ func (f *QueryFilter) Handle(ctx services.Context) error {
 			eot := &model.SqliEot{}
 			var transmission model.SqliTransmission
 			transmission = []model.SqliCommand{id, release, eot}
-			buf, err := transmission.Pack()
+			buf, err = transmission.Pack()
 			if err != nil {
 				return err
 			}
@@ -247,10 +424,57 @@ func (f *QueryFilter) Handle(ctx services.Context) error {
 			}
 		case "QueryDone":
 			//TODO: receive Sqli
-			_, err := model.UnpackSqliTransmission(reader)
+			msgs, err := model.UnpackSqliTransmission(reader)
 			if err != nil {
 				return err
 			}
+			buf := make([]byte, 1024)
+
+			//tuple
+			buf, err = msgs[0].Pack()
+			if err != nil {
+				return err
+			}
+			reader = bytes.NewReader(buf[2:])
+			tuple := &model.SqliTuple{}
+			err = tuple.Unpack(reader)
+			if err != nil {
+				return err
+			}
+			_ = tuple.Warnings
+			_ = tuple.Size
+			_ = tuple.TupleBytes
+			_ = tuple.Values
+			_ = tuple.Fields
+
+			//done
+			buf, err = msgs[1].Pack()
+			if err != nil {
+				return err
+			}
+			reader = bytes.NewReader(buf[2:])
+			done := &model.SqliDone{}
+			err = done.Unpack(reader)
+			if err != nil {
+				return err
+			}
+			_ = done.Rows
+
+			//cost
+			buf, err = msgs[2].Pack()
+			if err != nil {
+				return err
+			}
+			reader = bytes.NewReader(buf[2:])
+			cost := &model.SqliCost{}
+			err = cost.Unpack(reader)
+			if err != nil {
+				return err
+			}
+			_ = cost.EstimatedRows
+
+			//eot
+			_ = msgs[3]
 
 			//TODO: send pg
 			p := &pgproto3.ParseComplete{}
@@ -271,7 +495,7 @@ func (f *QueryFilter) Handle(ctx services.Context) error {
 			c := &pgproto3.CommandComplete{CommandTag: "SELECT 1"}
 			re := &pgproto3.ReadyForQuery{TxStatus: 'I'}
 			context.responses = []model.PgCommand{p, b, r, d, c, re}
-			buf, err := context.responses.Pack()
+			buf, err = context.responses.Pack()
 			if err != nil {
 				return err
 			}

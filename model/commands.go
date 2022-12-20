@@ -736,10 +736,10 @@ func (sq *SqliErr) Unpack(r io.Reader) error {
 // SqliTuple SQ_TUPLE 14
 type SqliTuple struct {
 	Warnings   uint16
-	size       uint32
-	tupleBytes []byte
+	Size       uint32
+	TupleBytes []byte
 	Values     TupleValues
-	fields     []SqliField
+	Fields     []SqliField
 }
 
 func (sq *SqliTuple) Command() uint16 {
@@ -752,7 +752,7 @@ func (sq *SqliTuple) Pack() ([]byte, error) {
 	packer.PushUint16(sq.Command())
 	packer.PushUint16(sq.Warnings)
 
-	if sq.tupleBytes == nil || len(sq.tupleBytes) == 0 {
+	if sq.TupleBytes == nil || len(sq.TupleBytes) == 0 {
 		var sum int64 = 0
 		for _, v := range sq.Values {
 			sum += v.Size()
@@ -765,9 +765,9 @@ func (sq *SqliTuple) Pack() ([]byte, error) {
 			packer.PushByte(0) // Pad
 		}
 	} else {
-		packer.PushUint32(sq.size)
-		packer.PushBytes(sq.tupleBytes)
-		if sq.size%2 == 1 {
+		packer.PushUint32(sq.Size)
+		packer.PushBytes(sq.TupleBytes)
+		if sq.Size%2 == 1 {
 			packer.PushByte(0)
 		}
 	}
@@ -776,17 +776,17 @@ func (sq *SqliTuple) Pack() ([]byte, error) {
 
 func (sq *SqliTuple) Unpack(r io.Reader) error {
 	unpacker := binpacker.NewUnpacker(binary.BigEndian, r)
-	unpacker.FetchUint16(&sq.Warnings).FetchUint32(&sq.size)
+	unpacker.FetchUint16(&sq.Warnings).FetchUint32(&sq.Size)
 	err := unpacker.Error()
 	if err != nil {
 		return err
 	}
-	sq.tupleBytes = make([]byte, sq.size)
-	_, err = r.Read(sq.tupleBytes)
+	sq.TupleBytes = make([]byte, sq.Size)
+	_, err = r.Read(sq.TupleBytes)
 	if err != nil {
 		return err
 	}
-	if sq.size%2 == 1 {
+	if sq.Size%2 == 1 {
 		var pad byte
 		unpacker.FetchByte(&pad) // Pad
 	}
@@ -802,10 +802,10 @@ func (sq *SqliTuple) MarshalJSON() ([]byte, error) {
 		Fields     []SqliField `json:"fields,omitempty"`
 	}{
 		Warnings:   sq.Warnings,
-		Size:       sq.size,
-		TupleBytes: sq.tupleBytes,
+		Size:       sq.Size,
+		TupleBytes: sq.TupleBytes,
 		Values:     sq.Values,
-		Fields:     sq.fields,
+		Fields:     sq.Fields,
 	})
 }
 
@@ -820,10 +820,10 @@ func (sq *SqliTuple) UnmarshalJSON(data []byte) (err error) {
 	err = json.Unmarshal(data, &tuple)
 
 	sq.Warnings = tuple.Warnings
-	sq.size = tuple.Size
-	sq.tupleBytes = tuple.TupleBytes
+	sq.Size = tuple.Size
+	sq.TupleBytes = tuple.TupleBytes
 	sq.Values = tuple.Values
-	sq.fields = tuple.Fields
+	sq.Fields = tuple.Fields
 
 	return
 }
@@ -831,12 +831,12 @@ func (sq *SqliTuple) UnmarshalJSON(data []byte) (err error) {
 var ERRSQLITUPLENOMETADATA = errors.New("can't find metadata")
 
 func (sq *SqliTuple) UnpackValues() error {
-	if sq.fields == nil {
+	if sq.Fields == nil {
 		return ERRSQLITUPLENOMETADATA
 	}
 	sq.Values = nil
-	sq.Values = make([]TupleValue, 0, len(sq.fields))
-	for _, f := range sq.fields {
+	sq.Values = make([]TupleValue, 0, len(sq.Fields))
+	for _, f := range sq.Fields {
 		switch f.ColumnType & 0xff {
 		case 0:
 			sq.Values = append(sq.Values, &CharTupleValue{Length: f.Length})
@@ -853,7 +853,7 @@ func (sq *SqliTuple) UnpackValues() error {
 			return errors.New("unknown data type")
 		}
 	}
-	r := bytes.NewReader(sq.tupleBytes)
+	r := bytes.NewReader(sq.TupleBytes)
 	for _, v := range sq.Values {
 		err := v.UnpackTupleValue(r)
 		if err != nil {
@@ -864,7 +864,7 @@ func (sq *SqliTuple) UnpackValues() error {
 	return nil
 }
 func (sq *SqliTuple) SetMetaData(fields []SqliField) {
-	sq.fields = fields
+	sq.Fields = fields
 }
 
 func NewDescribeTransmission() (SqliTransmission, error) {
