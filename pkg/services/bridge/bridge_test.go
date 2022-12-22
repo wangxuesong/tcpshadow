@@ -331,6 +331,84 @@ func TestConnectFilter_Handle(t *testing.T) {
 		assert.IsType(t, &pgproto.ReadyForQuery{}, msg)
 	}
 
+	go func() {
+		parse, err := pgproto.NewFrontend(pgproto.NewChunkReader(pgFront), nil)
+		assert.Nil(t, err)
+		msg, err := parse.Receive()
+		assert.Nil(t, err)
+		assert.IsType(t, &pgproto.ParseComplete{}, msg)
+		msg, err = parse.Receive()
+		assert.Nil(t, err)
+		assert.IsType(t, &pgproto.BindComplete{}, msg)
+		msg, err = parse.Receive()
+		assert.Nil(t, err)
+		assert.IsType(t, &pgproto.CommandComplete{}, msg)
+		msg, err = parse.Receive()
+		assert.Nil(t, err)
+		assert.IsType(t, &pgproto.ReadyForQuery{}, msg)
+
+		parse, err = pgproto.NewFrontend(pgproto.NewChunkReader(pgFront), nil)
+		assert.Nil(t, err)
+		msg, err = parse.Receive()
+		assert.Nil(t, err)
+		assert.IsType(t, &pgproto.ParseComplete{}, msg)
+		msg, err = parse.Receive()
+		assert.Nil(t, err)
+		assert.IsType(t, &pgproto.BindComplete{}, msg)
+		msg, err = parse.Receive()
+		assert.Nil(t, err)
+		assert.IsType(t, &pgproto.CommandComplete{}, msg)
+		msg, err = parse.Receive()
+		assert.Nil(t, err)
+		assert.IsType(t, &pgproto.ReadyForQuery{}, msg)
+	}()
+	
+	{
+		buffer := (&pgproto.Parse{
+			Name:          "",
+			Query:         "SET extra_float_digits = 3",
+			ParameterOIDs: nil,
+		}).Encode(nil)
+		buffer = (&pgproto.Bind{
+			DestinationPortal:    "",
+			PreparedStatement:    "",
+			ParameterFormatCodes: nil,
+			Parameters:           nil,
+			ResultFormatCodes:    nil,
+		}).Encode(buffer)
+		buffer = (&pgproto.Execute{
+			Portal:  "",
+			MaxRows: 1,
+		}).Encode(buffer)
+		buffer = (&pgproto.Sync{}).Encode(buffer)
+		ctx.SetData(&model.Data{
+			Forward: model.ClientToServer,
+			Buffer:  buffer,
+		})
+
+		buffer = (&pgproto.Parse{
+			Name:          "",
+			Query:         "SET application_name = 'PostgreSQL JDBC Driver'",
+			ParameterOIDs: nil,
+		}).Encode(nil)
+		buffer = (&pgproto.Bind{
+			DestinationPortal:    "",
+			PreparedStatement:    "",
+			ParameterFormatCodes: nil,
+			Parameters:           nil,
+			ResultFormatCodes:    nil,
+		}).Encode(buffer)
+		buffer = (&pgproto.Execute{
+			Portal:  "",
+			MaxRows: 0,
+		}).Encode(buffer)
+		buffer = (&pgproto.Sync{}).Encode(buffer)
+		ctx.SetData(&model.Data{
+			Forward: model.ClientToServer,
+			Buffer:  buffer,
+		})
+	}
+
 	assert.True(t, server_passed)
 }
 
@@ -342,7 +420,7 @@ func TestQueryFilter_Handle(t *testing.T) {
 		sessionId: 0,
 		front:     pgBackend,
 		backend:   gbFront,
-		state:     ConnectState,
+		state:     QueryState,
 		metadata:  make(map[string]interface{}),
 	}
 	buffer := (&pgproto.Parse{
