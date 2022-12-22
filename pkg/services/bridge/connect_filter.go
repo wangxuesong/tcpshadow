@@ -23,16 +23,6 @@ func (c *ConnectFilter) Handle(ctx services.Context) error {
 			return fmt.Errorf("unknown context type: %T", ctx)
 		}
 
-		//v, err := context.MetaData("ConnectStage")
-		//if err != nil {
-		//	return err
-		//}
-		//stage, ok := v.(string)
-		//if !ok {
-		//	return fmt.Errorf("mistake metadata type: %T", v)
-		//}
-		////reader := bytes.NewReader(ctx.Data().Buffer)
-		//switch stage {
 		if context.requests == nil {
 			backend, err := pgproto3.NewBackend(pgproto3.NewChunkReader(buff), nil)
 			if err != nil {
@@ -162,7 +152,7 @@ func (c *ConnectFilter) Handle(ctx services.Context) error {
 			}
 			query := parse.Query
 			tag := query[:3]
-			set := query[4:20]
+			set := query[4:15]
 
 			parsecomplete := &pgproto3.ParseComplete{}
 			bindcomplete := &pgproto3.BindComplete{}
@@ -173,17 +163,14 @@ func (c *ConnectFilter) Handle(ctx services.Context) error {
 			if err != nil {
 				return err
 			}
-			_, err = context.front.Write(buf)
-			if err != nil {
-				return err
-			}
-			if set == "application_name" {
-				err = ctx.SetMetaData("QueryStage", EndStage)
+			context.front.Write(buf)
+			if set != "application" {
+				err = ctx.SetMetaData("ConnectStage", "ConnectSet")
 				if err != nil {
 					return err
 				}
 			} else {
-				err = ctx.SetMetaData("ConnectStage", "ConnectSet")
+				err = ctx.SetMetaData("ConnectStage", EndStage)
 				if err != nil {
 					return err
 				}
