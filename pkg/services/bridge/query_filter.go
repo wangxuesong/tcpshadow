@@ -13,6 +13,11 @@ type QueryFilter struct {
 }
 
 var condition string
+var tuple [1024]model.SqliTuple
+var tupleNumber int
+var fieldsname [1024]string
+var data [1024]pgproto3.DataRow
+var idnumber int16
 
 func NewQueryFilter() *QueryFilter {
 	return &QueryFilter{}
@@ -146,12 +151,14 @@ func (f *QueryFilter) Handle(ctx services.Context) error {
 			}
 			_ = describe.StringTable
 			_ = describe.StatementType
-			_ = describe.StatementID
+			idnumber = int16(describe.StatementID)
 			_ = describe.EstimatedCost
 			_ = describe.TupleSize
 			_ = describe.CountOfFields
 			_ = describe.StringTable
-			_ = describe.Fields
+			for i := 0; i < len(describe.Fields); i++ {
+				fieldsname[i] = describe.Fields[i].Name
+			}
 
 			//done
 			buf, err = msgs[1].Pack()
@@ -238,7 +245,7 @@ func (f *QueryFilter) Handle(ctx services.Context) error {
 
 			//TODO: send Sqli
 			id := &model.SqliID{
-				ID: 0,
+				ID: idnumber,
 			}
 			curname := &model.SqliCurName{
 				CurName: "_ifxc0000000000000",
@@ -272,7 +279,7 @@ func (f *QueryFilter) Handle(ctx services.Context) error {
 
 			//TODO: send Sqli
 			id := &model.SqliID{
-				ID: 0,
+				ID: idnumber,
 			}
 			rettype := &model.SqliRetType{
 				Direction: 1,
@@ -340,7 +347,7 @@ func (f *QueryFilter) Handle(ctx services.Context) error {
 
 			//TODO: send Sqli
 			id := &model.SqliID{
-				ID: 0,
+				ID: idnumber,
 			}
 			//bind := &model.SqliBind{
 			//	Columns: []model.BindColumn{},
@@ -415,7 +422,7 @@ func (f *QueryFilter) Handle(ctx services.Context) error {
 
 			//TODO: send Sqli
 			id := &model.SqliID{
-				ID: 0,
+				ID: idnumber,
 			}
 			release := &model.SqliRelease{}
 			eot := &model.SqliEot{}
@@ -441,10 +448,9 @@ func (f *QueryFilter) Handle(ctx services.Context) error {
 				return err
 			}
 			buf := make([]byte, 1024)
-			tupleNumber := len(msgs) - 3
+			tupleNumber = len(msgs) - 3
 
 			//tuple
-			var tuple [3]model.SqliTuple
 			for i := 0; i < tupleNumber; i++ {
 				buf, err = msgs[i].Pack()
 				if err != nil {
@@ -455,11 +461,11 @@ func (f *QueryFilter) Handle(ctx services.Context) error {
 				if err != nil {
 					return err
 				}
-				_ = tuple[i].Warnings
-				_ = tuple[i].Size
-				_ = tuple[i].TupleBytes
-				_ = tuple[i].Values
-				_ = tuple[i].Fields
+				//_ = tuple[i].Warnings
+				//_ = tuple[i].Size
+				//_ = tuple[i].TupleBytes
+				//_ = tuple[i].Values
+				//_ = tuple[i].Fields
 			}
 
 			//done
@@ -496,7 +502,7 @@ func (f *QueryFilter) Handle(ctx services.Context) error {
 			b := &pgproto3.BindComplete{}
 			r := &pgproto3.RowDescription{Fields: []pgproto3.FieldDescription{
 				{
-					Name:                 "id",
+					Name:                 fieldsname[0],
 					TableOID:             40963,
 					TableAttributeNumber: 1,
 					DataTypeOID:          23,
@@ -505,11 +511,14 @@ func (f *QueryFilter) Handle(ctx services.Context) error {
 					Format:               0,
 				},
 			}}
-			response := [][]byte{[]byte("response")}
-			d := &pgproto3.DataRow{Values: response}
+
+			response := [][]byte{[]byte("1")}
+			for i := 0; i < 3; i++ {
+				data[i].Values = response
+			}
 			c := &pgproto3.CommandComplete{CommandTag: "SELECT 1"}
 			re := &pgproto3.ReadyForQuery{TxStatus: 'I'}
-			context.responses = []model.PgCommand{p, b, r, d, c, re}
+			context.responses = []model.PgCommand{p, b, r, &data[0], &data[1], &data[2], c, re}
 			buf, err = context.responses.Pack()
 			if err != nil {
 				return err
