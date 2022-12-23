@@ -325,18 +325,66 @@ func (f *QueryFilter) Handle(ctx services.Context) error {
 
 			//eot
 			_ = msgs[1]
+			////describe
+			//buf, err = msgs[0].Pack()
+			//if err != nil {
+			//	return err
+			//}
+			//reader := bytes.NewReader(buf[2:])
+			//describe := &model.SqliDescribe{}
+			//err = describe.Unpack(reader)
+			//if err != nil {
+			//	return err
+			//}
+			//_ = describe.StringTable
+			//_ = describe.StatementType
+			//_ = describe.StatementID
+			//_ = describe.EstimatedCost
+			//_ = describe.TupleSize
+			//_ = describe.CountOfFields
+			//_ = describe.StringTable
+			//_ = describe.Fields
+			//
+			////done
+			//buf, err = msgs[1].Pack()
+			//if err != nil {
+			//	return err
+			//}
+			//reader = bytes.NewReader(buf[2:])
+			//done := &model.SqliDone{}
+			//err = done.Unpack(reader)
+			//if err != nil {
+			//	return err
+			//}
+			//_ = done.Rows
+			//
+			////cost
+			//buf, err = msgs[2].Pack()
+			//if err != nil {
+			//	return err
+			//}
+			//reader = bytes.NewReader(buf[2:])
+			//cost := &model.SqliCost{}
+			//err = cost.Unpack(reader)
+			//if err != nil {
+			//	return err
+			//}
+			//_ = cost.EstimatedRows
+			//
+			////eot
+			//buf, err = msgs[3].Pack()
 
 			//TODO: send Sqli
 			id := &model.SqliID{
 				ID: 0,
 			}
-			bind := &model.SqliBind{
-				Columns: []model.BindColumn{},
-			}
+			//bind := &model.SqliBind{
+			//	Columns: []model.BindColumn{},
+			//}
 			execute := &model.SqliExecute{}
 			eot := &model.SqliEot{}
 			var transmission model.SqliTransmission
-			transmission = []model.SqliCommand{id, bind, execute, eot}
+			transmission = []model.SqliCommand{id, execute, eot}
 			buf, err = transmission.Pack()
 			if err != nil {
 				return err

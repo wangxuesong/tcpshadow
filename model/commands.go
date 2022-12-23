@@ -1377,19 +1377,21 @@ func (sq *SqliIdescribe) Unpack(r io.Reader) error {
 	unpacker := binpacker.NewUnpacker(binary.BigEndian, r)
 	var count uint16
 	unpacker.FetchUint16(&count)
-	unpacker.FetchUint16(&sq.Inputfields)
-	sq.Fields = make([]Sqlifields, 0, count)
-	for i := 0; i < int(count); i++ {
-		var c Sqlifields
-		unpacker.FetchUint16(&c.Type)
-		unpacker.FetchUint32(&c.ExtendID)
-		unpacker.FetchUint16(&c.OwnerNameLength)
-		unpacker.FetchUint16(&c.ExtendTypeNameLength)
-		unpacker.FetchUint16(&c.PassByReferenceFlag)
-		unpacker.FetchUint16(&c.Alignment)
-		unpacker.FetchUint32(&c.SourceType)
-		unpacker.FetchUint32(&c.Length)
-		sq.Fields = append(sq.Fields, c)
+	if count != 0 {
+		unpacker.FetchUint16(&sq.Inputfields)
+		sq.Fields = make([]Sqlifields, 0, count)
+		for i := 0; i < int(count); i++ {
+			var c Sqlifields
+			unpacker.FetchUint16(&c.Type)
+			unpacker.FetchUint32(&c.ExtendID)
+			unpacker.FetchUint16(&c.OwnerNameLength)
+			unpacker.FetchUint16(&c.ExtendTypeNameLength)
+			unpacker.FetchUint16(&c.PassByReferenceFlag)
+			unpacker.FetchUint16(&c.Alignment)
+			unpacker.FetchUint32(&c.SourceType)
+			unpacker.FetchUint32(&c.Length)
+			sq.Fields = append(sq.Fields, c)
+		}
 	}
 	return unpacker.Error()
 }

@@ -257,7 +257,7 @@ func (c *ConnectFilter) Handle(ctx services.Context) error {
 
 			//TODO: send SqliDBOpen
 			deopen := &model.SqliDBOpen{
-				DBName: "test",
+				DBName: "t",
 				Foo:    0,
 			}
 			eot := &model.SqliEot{}
