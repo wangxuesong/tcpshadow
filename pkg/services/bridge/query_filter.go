@@ -12,11 +12,14 @@ import (
 type QueryFilter struct {
 }
 
+var condition string
+
 func NewQueryFilter() *QueryFilter {
 	return &QueryFilter{}
 }
 
 func (f *QueryFilter) Handle(ctx services.Context) error {
+
 	if ctx.Data().Forward == model.ClientToServer {
 		parser := model.NewPgClientParser()
 		_, err := parser.Append(ctx.Data().Buffer)
@@ -36,6 +39,7 @@ func (f *QueryFilter) Handle(ctx services.Context) error {
 			return err
 		}
 		sql := parse.Query
+		condition = sql[:6]
 		paranumber := len(parse.ParameterOIDs)
 		//bind
 		buf = msg[1].Encode(nil)
@@ -195,11 +199,19 @@ func (f *QueryFilter) Handle(ctx services.Context) error {
 			if err != nil {
 				return err
 			}
-			err = ctx.SetMetaData("QueryStage", "QueryIDescribeDone")
-			if err != nil {
-				return err
+
+			if condition != "select" {
+				err = ctx.SetMetaData("QueryStage", "QueryIDescribeDone")
+				if err != nil {
+					return err
+				}
+			} else {
+				err = ctx.SetMetaData("QueryStage", "QuerySelectIDescribeDone")
+				if err != nil {
+					return err
+				}
 			}
-		case "":
+		case "QuerySelectIDescribeDone":
 			//TODO: receive Sqli
 			msgs, err := model.UnpackSqliTransmission(reader)
 			if err != nil {
@@ -231,13 +243,13 @@ func (f *QueryFilter) Handle(ctx services.Context) error {
 			curname := &model.SqliCurName{
 				CurName: "_ifxc0000000000000",
 			}
-			bind := &model.SqliBind{
-				Columns: nil,
-			}
+			//bind := &model.SqliBind{
+			//	Columns: nil,
+			//}
 			open := &model.SqliOpen{}
 			eot := &model.SqliEot{}
 			var transmission model.SqliTransmission
-			transmission = []model.SqliCommand{id, curname, bind, open, eot}
+			transmission = []model.SqliCommand{id, curname, open, eot}
 			buf, err = transmission.Pack()
 			if err != nil {
 				return err
@@ -429,26 +441,29 @@ func (f *QueryFilter) Handle(ctx services.Context) error {
 				return err
 			}
 			buf := make([]byte, 1024)
+			tupleNumber := len(msgs) - 3
 
 			//tuple
-			buf, err = msgs[0].Pack()
-			if err != nil {
-				return err
+			var tuple [3]model.SqliTuple
+			for i := 0; i < tupleNumber; i++ {
+				buf, err = msgs[i].Pack()
+				if err != nil {
+					return err
+				}
+				reader = bytes.NewReader(buf[2:])
+				err = tuple[i].Unpack(reader)
+				if err != nil {
+					return err
+				}
+				_ = tuple[i].Warnings
+				_ = tuple[i].Size
+				_ = tuple[i].TupleBytes
+				_ = tuple[i].Values
+				_ = tuple[i].Fields
 			}
-			reader = bytes.NewReader(buf[2:])
-			tuple := &model.SqliTuple{}
-			err = tuple.Unpack(reader)
-			if err != nil {
-				return err
-			}
-			_ = tuple.Warnings
-			_ = tuple.Size
-			_ = tuple.TupleBytes
-			_ = tuple.Values
-			_ = tuple.Fields
 
 			//done
-			buf, err = msgs[1].Pack()
+			buf, err = msgs[tupleNumber].Pack()
 			if err != nil {
 				return err
 			}
@@ -461,7 +476,7 @@ func (f *QueryFilter) Handle(ctx services.Context) error {
 			_ = done.Rows
 
 			//cost
-			buf, err = msgs[2].Pack()
+			buf, err = msgs[tupleNumber+1].Pack()
 			if err != nil {
 				return err
 			}
@@ -474,7 +489,7 @@ func (f *QueryFilter) Handle(ctx services.Context) error {
 			_ = cost.EstimatedRows
 
 			//eot
-			_ = msgs[3]
+			_ = msgs[tupleNumber+2]
 
 			//TODO: send pg
 			p := &pgproto3.ParseComplete{}
