@@ -456,7 +456,7 @@ func (f *QueryFilter) Handle(ctx services.Context) error {
 				if err != nil {
 					return err
 				}
-				reader = bytes.NewReader(buf[2:])
+				reader = bytes.NewReader(buf)
 				err = tuple[i].Unpack(reader)
 				if err != nil {
 					return err
