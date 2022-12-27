@@ -252,14 +252,17 @@ func (f *QueryFilter) Handle(ctx services.Context) error {
 			curname := &model.SqliCurName{
 				CurName: "_ifxc0000000000000",
 			}
-			bindint := &model.BindColumnInt{
-				Type:      2,
-				Indicator: 0,
-				Precision: 2560,
-				Data:      uint16(binddata[0][0]),
-			}
 			bind := &model.SqliBind{
-				Columns: []model.BindColumn{*bindint},
+				Columns: []model.BindColumn{},
+			}
+			if bindcondition != 0 {
+				bindint := &model.BindColumnInt{
+					Type:      2,
+					Indicator: 0,
+					Precision: 2560,
+					Data:      uint16(binddata[0][0]),
+				}
+				bind.Columns = []model.BindColumn{*bindint}
 			}
 			open := &model.SqliOpen{}
 			eot := &model.SqliEot{}
@@ -361,14 +364,17 @@ func (f *QueryFilter) Handle(ctx services.Context) error {
 			id := &model.SqliID{
 				ID: idnumber,
 			}
-			bindint := &model.BindColumnInt{
-				Type:      2,
-				Indicator: 0,
-				Precision: 2560,
-				Data:      uint16(binddata[0][0]),
-			}
 			bind := &model.SqliBind{
-				Columns: []model.BindColumn{*bindint},
+				Columns: []model.BindColumn{},
+			}
+			if bindcondition != 0 {
+				bindint := &model.BindColumnInt{
+					Type:      2,
+					Indicator: 0,
+					Precision: 2560,
+					Data:      uint16(binddata[0][0]),
+				}
+				bind.Columns = []model.BindColumn{*bindint}
 			}
 			execute := &model.SqliExecute{}
 			eot := &model.SqliEot{}
