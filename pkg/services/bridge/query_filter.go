@@ -263,13 +263,20 @@ func (f *QueryFilter) Handle(ctx services.Context) error {
 				Columns: []model.BindColumn{},
 			}
 			if bindcondition != 0 {
-				bindint := &model.BindColumnInt{
-					Type:      2,
-					Indicator: 0,
-					Precision: 2560,
-					Data:      uint16(binddata[0][0]),
+				for _, c := range bindtype {
+					var bindType int16
+					switch c {
+					case 23:
+						bindType = 2
+					}
+					bindint := &model.BindColumnInt{
+						Type:      bindType,
+						Indicator: 0,
+						Precision: 2560,
+						Data:      uint16(binddata[0][0]),
+					}
+					bind.Columns = []model.BindColumn{*bindint}
 				}
-				bind.Columns = []model.BindColumn{*bindint}
 			}
 			open := &model.SqliOpen{}
 			eot := &model.SqliEot{}
