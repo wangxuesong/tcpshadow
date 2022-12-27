@@ -20,6 +20,7 @@ var data [1024]pgproto3.DataRow
 var idnumber int16
 var bindcondition int
 var binddata [][]byte
+var bindtype []uint32
 
 func NewQueryFilter() *QueryFilter {
 	return &QueryFilter{}
@@ -38,6 +39,7 @@ func (f *QueryFilter) Handle(ctx services.Context) error {
 			return err
 		}
 		buf := make([]byte, 2048)
+
 		//parse
 		buf = msg[0].Encode(nil)
 		parse := &pgproto3.Parse{}
@@ -47,7 +49,9 @@ func (f *QueryFilter) Handle(ctx services.Context) error {
 		}
 		sql := parse.Query
 		condition = sql[:6]
+		bindtype = parse.ParameterOIDs
 		paranumber := len(parse.ParameterOIDs)
+
 		//bind
 		buf = msg[1].Encode(nil)
 		bind := &pgproto3.Bind{}
@@ -61,6 +65,7 @@ func (f *QueryFilter) Handle(ctx services.Context) error {
 		bindcondition = len(bind.ParameterFormatCodes)
 		binddata = bind.Parameters
 		_ = bind.ResultFormatCodes
+
 		//describe
 		buf = msg[2].Encode(nil)
 		describe := &pgproto3.Describe{}
@@ -70,6 +75,7 @@ func (f *QueryFilter) Handle(ctx services.Context) error {
 		}
 		_ = describe.ObjectType
 		_ = describe.Name
+
 		//execute
 		buf = msg[3].Encode(nil)
 		execute := &pgproto3.Execute{}
@@ -79,6 +85,7 @@ func (f *QueryFilter) Handle(ctx services.Context) error {
 		}
 		_ = execute.Portal
 		_ = execute.MaxRows
+
 		//sync
 		buf = msg[4].Encode(nil)
 		sync := &pgproto3.Sync{}
@@ -368,13 +375,20 @@ func (f *QueryFilter) Handle(ctx services.Context) error {
 				Columns: []model.BindColumn{},
 			}
 			if bindcondition != 0 {
-				bindint := &model.BindColumnInt{
-					Type:      2,
-					Indicator: 0,
-					Precision: 2560,
-					Data:      uint16(binddata[0][0]),
+				for _, c := range bindtype {
+					var bindType int16
+					switch c {
+					case 23:
+						bindType = 2
+					}
+					bindint := &model.BindColumnInt{
+						Type:      bindType,
+						Indicator: 0,
+						Precision: 2560,
+						Data:      uint16(binddata[0][0]),
+					}
+					bind.Columns = []model.BindColumn{*bindint}
 				}
-				bind.Columns = []model.BindColumn{*bindint}
 			}
 			execute := &model.SqliExecute{}
 			eot := &model.SqliEot{}
