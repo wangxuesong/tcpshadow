@@ -412,7 +412,7 @@ func TestConnectFilter_Handle(t *testing.T) {
 	assert.True(t, server_passed)
 }
 
-func TestQueryFilter_Handle_INSERT(t *testing.T) {
+func TestQueryFilter_Handle_INSERT_Bind(t *testing.T) {
 	pgFront, pgBackend := net.Pipe()
 	gbFront, gbBackend := net.Pipe()
 	filter := NewQueryFilter()
@@ -658,6 +658,509 @@ func TestQueryFilter_Handle_INSERT(t *testing.T) {
 	//assert.True(t, server_passed)
 }
 
+func TestQueryFilter_Handle_INSERT(t *testing.T) {
+	pgFront, pgBackend := net.Pipe()
+	gbFront, gbBackend := net.Pipe()
+	filter := NewQueryFilter()
+	ctx := &Context{
+		sessionId: 0,
+		front:     pgBackend,
+		backend:   gbFront,
+		state:     QueryState,
+		metadata:  make(map[string]interface{}),
+	}
+	buffer := (&pgproto.Parse{
+		Name:          "",
+		Query:         "insert into t values (1)",
+		ParameterOIDs: nil,
+	}).Encode(nil)
+	buffer = (&pgproto.Bind{
+		DestinationPortal:    "",
+		PreparedStatement:    "",
+		ParameterFormatCodes: nil,
+		Parameters:           nil,
+		ResultFormatCodes:    nil,
+	}).Encode(buffer)
+	buffer = (&pgproto.Describe{
+		ObjectType: 'P',
+		Name:       "",
+	}).Encode(buffer)
+	buffer = (&pgproto.Execute{
+		Portal:  "",
+		MaxRows: 0,
+	}).Encode(buffer)
+	buffer = (&pgproto.Sync{}).Encode(buffer)
+	ctx.SetData(&model.Data{
+		Forward: model.ClientToServer,
+		Buffer:  buffer,
+	})
+
+	//server_passed := false
+	// 8s Server
+	go func() {
+		//defer func() { server_passed = true }()
+		buf := make([]byte, 1024)
+		c, err := gbBackend.Read(buf)
+		assert.Nil(t, err)
+		assert.True(t, c > 0)
+		buff := buf[:c]
+		readseeker := bytes.NewReader(buff)
+		msgs, err := model.UnpackSqliTransmission(readseeker)
+		assert.Nil(t, err)
+		assert.IsType(t, &model.SqliPrepare{}, msgs[0])
+		assert.IsType(t, &model.SqliNDescribe{}, msgs[1])
+		assert.IsType(t, &model.SqliWantDone{}, msgs[2])
+		assert.IsType(t, &model.SqliEot{}, msgs[3])
+
+		c, err = gbBackend.Read(buf)
+		assert.Nil(t, err)
+		assert.True(t, c > 0)
+		buff = buf[:c]
+		readseeker = bytes.NewReader(buff)
+		msgs, err = model.UnpackSqliTransmission(readseeker)
+		assert.Nil(t, err)
+		assert.IsType(t, &model.SqliID{}, msgs[0])
+		assert.IsType(t, &model.SqliCIdescribe{}, msgs[1])
+		assert.IsType(t, &model.SqliEot{}, msgs[2])
+
+		c, err = gbBackend.Read(buf)
+		assert.Nil(t, err)
+		assert.True(t, c > 0)
+		buff = buf[:c]
+		readseeker = bytes.NewReader(buff)
+		msgs, err = model.UnpackSqliTransmission(readseeker)
+		assert.Nil(t, err)
+		assert.IsType(t, &model.SqliID{}, msgs[0])
+		assert.IsType(t, &model.SqliExecute{}, msgs[1])
+		assert.IsType(t, &model.SqliEot{}, msgs[2])
+
+		c, err = gbBackend.Read(buf)
+		assert.Nil(t, err)
+		assert.True(t, c > 0)
+		buff = buf[:c]
+		readseeker = bytes.NewReader(buff)
+		msgs, err = model.UnpackSqliTransmission(readseeker)
+		assert.Nil(t, err)
+		assert.IsType(t, &model.SqliID{}, msgs[0])
+		assert.IsType(t, &model.SqliRelease{}, msgs[1])
+		assert.IsType(t, &model.SqliEot{}, msgs[2])
+
+	}()
+
+	go func() {
+		//defer func() { server_passed = true }()
+		err := filter.Handle(ctx)
+		assert.Nil(t, err)
+
+		// gbase response
+		describe := &model.SqliDescribe{
+			StatementType: 2,
+			StatementID:   0,
+			EstimatedCost: 0,
+			TupleSize:     8,
+			CountOfFields: 2,
+			StringTable:   8,
+			Fields: []model.SqliField{{
+				FieldIndex:              0,
+				ColumnStartPos:          0,
+				ColumnType:              2,
+				ColumnExtendedBuiltinId: 0,
+				OwnerName:               "",
+				ExtendedName:            "",
+				Reference:               0,
+				Alignment:               0,
+				SourceType:              0,
+				Length:                  4,
+				Name:                    "id",
+			}, {
+				FieldIndex:              3,
+				ColumnStartPos:          4,
+				ColumnType:              2,
+				ColumnExtendedBuiltinId: 0,
+				OwnerName:               "",
+				ExtendedName:            "",
+				Reference:               0,
+				Alignment:               0,
+				SourceType:              0,
+				Length:                  4,
+				Name:                    "code",
+			},
+			},
+		}
+		done := &model.SqliDone{
+			Warning:  0,
+			Rows:     0,
+			RowID:    0,
+			SerialID: 0,
+		}
+		cost := &model.SqliCost{
+			EstimatedRows: 1,
+			EstimatedIO:   2,
+		}
+		eot := &model.SqliEot{}
+		var transmission model.SqliTransmission
+		transmission = []model.SqliCommand{describe, done, cost, eot}
+		buffer, err := transmission.Pack()
+		assert.Nil(t, err)
+		//TODO: 将 buffer 改成正式的 sqli 数据
+		ctx.SetData(&model.Data{
+			Forward: model.ServerToClient,
+			Buffer:  buffer,
+		})
+		err = filter.Handle(ctx)
+		assert.Nil(t, err)
+
+		idescribe := &model.SqliIdescribe{
+			Inputfields: 2,
+			Fields: []model.Sqlifields{{
+				Type:                 2,
+				ExtendID:             0,
+				OwnerNameLength:      0,
+				ExtendTypeNameLength: 0,
+				PassByReferenceFlag:  0,
+				Alignment:            0,
+				SourceType:           0,
+				Length:               4,
+			}, {
+				Type:                 2,
+				ExtendID:             0,
+				OwnerNameLength:      0,
+				ExtendTypeNameLength: 0,
+				PassByReferenceFlag:  0,
+				Alignment:            0,
+				SourceType:           0,
+				Length:               4,
+			}},
+		}
+		transmission = []model.SqliCommand{idescribe, eot}
+		buffer, err = transmission.Pack()
+		assert.Nil(t, err)
+		//TODO: 将 buffer 改成正式的 sqli 数据
+		ctx.SetData(&model.Data{
+			Forward: model.ServerToClient,
+			Buffer:  buffer,
+		})
+		err = filter.Handle(ctx)
+		assert.Nil(t, err)
+
+		insertdone := &model.SqliInsertDone{
+			Serial8:   1,
+			BigSerial: 2,
+		}
+		done = &model.SqliDone{
+			Warning:  0,
+			Rows:     0,
+			RowID:    0,
+			SerialID: 0,
+		}
+		cost = &model.SqliCost{
+			EstimatedRows: 1,
+			EstimatedIO:   2,
+		}
+		transmission = []model.SqliCommand{insertdone, done, cost, eot}
+		buffer, err = transmission.Pack()
+		assert.Nil(t, err)
+		//TODO: 将 buffer 改成正式的 sqli 数据
+		ctx.SetData(&model.Data{
+			Forward: model.ServerToClient,
+			Buffer:  buffer,
+		})
+		err = filter.Handle(ctx)
+		assert.Nil(t, err)
+
+		transmission = []model.SqliCommand{eot}
+		buffer, err = transmission.Pack()
+		assert.Nil(t, err)
+		//TODO: 将 buffer 改成正式的 sqli 数据
+		ctx.SetData(&model.Data{
+			Forward: model.ServerToClient,
+			Buffer:  buffer,
+		})
+		err = filter.Handle(ctx)
+		assert.Nil(t, err)
+	}()
+
+	{
+		parse, err := pgproto.NewFrontend(pgproto.NewChunkReader(pgFront), nil)
+		assert.Nil(t, err)
+
+		msg, err := parse.Receive()
+		assert.Nil(t, err)
+		assert.IsType(t, &pgproto.ParseComplete{}, msg)
+		msg, err = parse.Receive()
+		assert.Nil(t, err)
+		assert.IsType(t, &pgproto.BindComplete{}, msg)
+		msg, err = parse.Receive()
+		assert.Nil(t, err)
+		assert.IsType(t, &pgproto.NoData{}, msg)
+		msg, err = parse.Receive()
+		assert.Nil(t, err)
+		assert.IsType(t, &pgproto.CommandComplete{}, msg)
+		msg, err = parse.Receive()
+		assert.Nil(t, err)
+		assert.IsType(t, &pgproto.ReadyForQuery{}, msg)
+	}
+	//assert.True(t, server_passed)
+}
+
+func TestQueryFilter_Handle_SELECT_Bind(t *testing.T) {
+	pgFront, pgBackend := net.Pipe()
+	gbFront, gbBackend := net.Pipe()
+	filter := NewQueryFilter()
+	ctx := &Context{
+		sessionId: 0,
+		front:     pgBackend,
+		backend:   gbFront,
+		state:     QueryState,
+		metadata:  make(map[string]interface{}),
+	}
+	buffer := (&pgproto.Parse{
+		Name:          "",
+		Query:         "select * from t",
+		ParameterOIDs: []uint32{23},
+	}).Encode(nil)
+	buffer = (&pgproto.Bind{
+		DestinationPortal:    "",
+		PreparedStatement:    "",
+		ParameterFormatCodes: []int16{1},
+		Parameters:           [][]byte{{2}},
+		ResultFormatCodes:    []int16{0},
+	}).Encode(buffer)
+	buffer = (&pgproto.Describe{
+		ObjectType: 'P',
+		Name:       "",
+	}).Encode(buffer)
+	buffer = (&pgproto.Execute{
+		Portal:  "",
+		MaxRows: 0,
+	}).Encode(buffer)
+	buffer = (&pgproto.Sync{}).Encode(buffer)
+	ctx.SetData(&model.Data{
+		Forward: model.ClientToServer,
+		Buffer:  buffer,
+	})
+
+	//server_passed := false
+	// 8s Server
+	go func() {
+		//defer func() { server_passed = true }()
+		buf := make([]byte, 1024)
+		c, err := gbBackend.Read(buf)
+		assert.Nil(t, err)
+		assert.True(t, c > 0)
+		buff := buf[:c]
+		readseeker := bytes.NewReader(buff)
+		msgs, err := model.UnpackSqliTransmission(readseeker)
+		assert.Nil(t, err)
+		assert.IsType(t, &model.SqliPrepare{}, msgs[0])
+		assert.IsType(t, &model.SqliNDescribe{}, msgs[1])
+		assert.IsType(t, &model.SqliWantDone{}, msgs[2])
+		assert.IsType(t, &model.SqliEot{}, msgs[3])
+
+		c, err = gbBackend.Read(buf)
+		assert.Nil(t, err)
+		assert.True(t, c > 0)
+		buff = buf[:c]
+		readseeker = bytes.NewReader(buff)
+		msgs, err = model.UnpackSqliTransmission(readseeker)
+		assert.Nil(t, err)
+		assert.IsType(t, &model.SqliID{}, msgs[0])
+		assert.IsType(t, &model.SqliCIdescribe{}, msgs[1])
+		assert.IsType(t, &model.SqliEot{}, msgs[2])
+
+		c, err = gbBackend.Read(buf)
+		assert.Nil(t, err)
+		assert.True(t, c > 0)
+		buff = buf[:c]
+		readseeker = bytes.NewReader(buff)
+		msgs, err = model.UnpackSqliTransmission(readseeker)
+		assert.Nil(t, err)
+		assert.IsType(t, &model.SqliID{}, msgs[0])
+		assert.IsType(t, &model.SqliCurName{}, msgs[1])
+		assert.IsType(t, &model.SqliBind{}, msgs[2])
+		assert.IsType(t, &model.SqliOpen{}, msgs[3])
+		assert.IsType(t, &model.SqliEot{}, msgs[4])
+
+		c, err = gbBackend.Read(buf)
+		assert.Nil(t, err)
+		assert.True(t, c > 0)
+		buff = buf[:c]
+		readseeker = bytes.NewReader(buff)
+		msgs, err = model.UnpackSqliTransmission(readseeker)
+		assert.Nil(t, err)
+		assert.IsType(t, &model.SqliID{}, msgs[0])
+		assert.IsType(t, &model.SqliRetType{}, msgs[1])
+		assert.IsType(t, &model.SqliNFetch{}, msgs[2])
+		assert.IsType(t, &model.SqliEot{}, msgs[3])
+
+	}()
+
+	go func() {
+		//defer func() { server_passed = true }()
+		err := filter.Handle(ctx)
+		assert.Nil(t, err)
+
+		// gbase response
+		describe := &model.SqliDescribe{
+			StatementType: 2,
+			StatementID:   0,
+			EstimatedCost: 0,
+			TupleSize:     4,
+			CountOfFields: 1,
+			StringTable:   3,
+			Fields: []model.SqliField{{
+				FieldIndex:              0,
+				ColumnStartPos:          0,
+				ColumnType:              2,
+				ColumnExtendedBuiltinId: 0,
+				OwnerName:               "",
+				ExtendedName:            "",
+				Reference:               0,
+				Alignment:               0,
+				SourceType:              0,
+				Length:                  4,
+				Name:                    "id",
+			},
+			},
+		}
+		done := &model.SqliDone{
+			Warning:  0,
+			Rows:     0,
+			RowID:    0,
+			SerialID: 0,
+		}
+		cost := &model.SqliCost{
+			EstimatedRows: 32,
+			EstimatedIO:   2,
+		}
+		eot := &model.SqliEot{}
+		var transmission model.SqliTransmission
+		transmission = []model.SqliCommand{describe, done, cost, eot}
+		buffer, err := transmission.Pack()
+		assert.Nil(t, err)
+		//TODO: 将 buffer 改成正式的 sqli 数据
+		ctx.SetData(&model.Data{
+			Forward: model.ServerToClient,
+			Buffer:  buffer,
+		})
+		err = filter.Handle(ctx)
+		assert.Nil(t, err)
+
+		idescribe := &model.SqliIdescribe{
+			Inputfields: 2,
+			Fields: []model.Sqlifields{{
+				Type:                 2,
+				ExtendID:             0,
+				OwnerNameLength:      0,
+				ExtendTypeNameLength: 0,
+				PassByReferenceFlag:  0,
+				Alignment:            0,
+				SourceType:           0,
+				Length:               4,
+			}, {
+				Type:                 2,
+				ExtendID:             0,
+				OwnerNameLength:      0,
+				ExtendTypeNameLength: 0,
+				PassByReferenceFlag:  0,
+				Alignment:            0,
+				SourceType:           0,
+				Length:               4,
+			}},
+		}
+		transmission = []model.SqliCommand{idescribe, eot}
+		buffer, err = transmission.Pack()
+		assert.Nil(t, err)
+		//TODO: 将 buffer 改成正式的 sqli 数据
+		ctx.SetData(&model.Data{
+			Forward: model.ServerToClient,
+			Buffer:  buffer,
+		})
+		err = filter.Handle(ctx)
+		assert.Nil(t, err)
+
+		transmission = []model.SqliCommand{eot}
+		buffer, err = transmission.Pack()
+		assert.Nil(t, err)
+		//TODO: 将 buffer 改成正式的 sqli 数据
+		ctx.SetData(&model.Data{
+			Forward: model.ServerToClient,
+			Buffer:  buffer,
+		})
+		err = filter.Handle(ctx)
+		assert.Nil(t, err)
+
+		tuple := &model.SqliTuple{
+			Warnings: 0,
+			Size:     4,
+			Fields: []model.SqliField{{
+				FieldIndex:              0,
+				ColumnStartPos:          0,
+				ColumnType:              2,
+				ColumnExtendedBuiltinId: 0,
+				OwnerName:               "",
+				ExtendedName:            "",
+				Reference:               0,
+				Alignment:               0,
+				SourceType:              0,
+				Length:                  4,
+				Name:                    "id",
+			},
+			},
+		}
+		done = &model.SqliDone{
+			Warning:  0,
+			Rows:     3,
+			RowID:    259,
+			SerialID: 0,
+		}
+		cost = &model.SqliCost{
+			EstimatedRows: 32,
+			EstimatedIO:   2,
+		}
+		transmission = []model.SqliCommand{tuple, tuple, tuple, done, cost, eot}
+		buffer, err = transmission.Pack()
+		assert.Nil(t, err)
+		//TODO: 将 buffer 改成正式的 sqli 数据
+		ctx.SetData(&model.Data{
+			Forward: model.ServerToClient,
+			Buffer:  buffer,
+		})
+		err = filter.Handle(ctx)
+		assert.Nil(t, err)
+	}()
+
+	{
+		parse, err := pgproto.NewFrontend(pgproto.NewChunkReader(pgFront), nil)
+		assert.Nil(t, err)
+
+		msg, err := parse.Receive()
+		assert.Nil(t, err)
+		assert.IsType(t, &pgproto.ParseComplete{}, msg)
+		msg, err = parse.Receive()
+		assert.Nil(t, err)
+		assert.IsType(t, &pgproto.BindComplete{}, msg)
+		//msg, err = parse.Receive()
+		//assert.Nil(t, err)
+		//assert.IsType(t, &pgproto.NoData{}, msg)
+		msg, err = parse.Receive()
+		assert.Nil(t, err)
+		assert.IsType(t, &pgproto.RowDescription{}, msg)
+		for i := 0; i < 3; i++ {
+			msg, err = parse.Receive()
+			assert.Nil(t, err)
+			assert.IsType(t, &pgproto.DataRow{}, msg)
+		}
+		msg, err = parse.Receive()
+		assert.Nil(t, err)
+		assert.IsType(t, &pgproto.CommandComplete{}, msg)
+		msg, err = parse.Receive()
+		assert.Nil(t, err)
+		assert.IsType(t, &pgproto.ReadyForQuery{}, msg)
+	}
+	//assert.True(t, server_passed)
+}
+
 func TestQueryFilter_Handle_SELECT(t *testing.T) {
 	pgFront, pgBackend := net.Pipe()
 	gbFront, gbBackend := net.Pipe()
@@ -677,9 +1180,9 @@ func TestQueryFilter_Handle_SELECT(t *testing.T) {
 	buffer = (&pgproto.Bind{
 		DestinationPortal:    "",
 		PreparedStatement:    "",
-		ParameterFormatCodes: []int16{1},
-		Parameters:           [][]byte{{2}},
-		ResultFormatCodes:    []int16{0},
+		ParameterFormatCodes: nil,
+		Parameters:           nil,
+		ResultFormatCodes:    nil,
 	}).Encode(buffer)
 	buffer = (&pgproto.Describe{
 		ObjectType: 'P',
@@ -735,9 +1238,8 @@ func TestQueryFilter_Handle_SELECT(t *testing.T) {
 		assert.Nil(t, err)
 		assert.IsType(t, &model.SqliID{}, msgs[0])
 		assert.IsType(t, &model.SqliCurName{}, msgs[1])
-		assert.IsType(t, &model.SqliBind{}, msgs[2])
-		assert.IsType(t, &model.SqliOpen{}, msgs[3])
-		assert.IsType(t, &model.SqliEot{}, msgs[4])
+		assert.IsType(t, &model.SqliOpen{}, msgs[2])
+		assert.IsType(t, &model.SqliEot{}, msgs[3])
 
 		c, err = gbBackend.Read(buf)
 		assert.Nil(t, err)
