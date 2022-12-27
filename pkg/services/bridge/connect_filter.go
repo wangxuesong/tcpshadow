@@ -33,7 +33,7 @@ func (c *ConnectFilter) Handle(ctx services.Context) error {
 			if err != nil {
 				return err
 			}
-			_ = msg.Parameters["user"]
+			user := msg.Parameters["user"]
 			_ = msg.Parameters["password"]
 
 			context.requests = []model.PgCommand{msg}
@@ -62,7 +62,7 @@ func (c *ConnectFilter) Handle(ctx services.Context) error {
 				Noname10:         0,
 				Noname11:         1,
 				Clientnamelength: 9,
-				Clientname:       "gbasedbt",
+				Clientname:       user,
 				Passwordlength:   33,
 				Password:         "HmQOYC1ZfTYt+vlXUhkn3w==",
 				Noname12:         "ol",

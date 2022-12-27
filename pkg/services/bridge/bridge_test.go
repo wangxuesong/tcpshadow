@@ -431,9 +431,9 @@ func TestQueryFilter_Handle_INSERT(t *testing.T) {
 	buffer = (&pgproto.Bind{
 		DestinationPortal:    "",
 		PreparedStatement:    "",
-		ParameterFormatCodes: nil,
-		Parameters:           nil,
-		ResultFormatCodes:    nil,
+		ParameterFormatCodes: []int16{1},
+		Parameters:           [][]byte{{2}},
+		ResultFormatCodes:    []int16{0},
 	}).Encode(buffer)
 	buffer = (&pgproto.Describe{
 		ObjectType: 'P',
@@ -488,9 +488,9 @@ func TestQueryFilter_Handle_INSERT(t *testing.T) {
 		msgs, err = model.UnpackSqliTransmission(readseeker)
 		assert.Nil(t, err)
 		assert.IsType(t, &model.SqliID{}, msgs[0])
-		//assert.IsType(t, &model.SqliBind{}, msgs[1])
-		assert.IsType(t, &model.SqliExecute{}, msgs[1])
-		assert.IsType(t, &model.SqliEot{}, msgs[2])
+		assert.IsType(t, &model.SqliBind{}, msgs[1])
+		assert.IsType(t, &model.SqliExecute{}, msgs[2])
+		assert.IsType(t, &model.SqliEot{}, msgs[3])
 
 		c, err = gbBackend.Read(buf)
 		assert.Nil(t, err)
@@ -651,12 +651,6 @@ func TestQueryFilter_Handle_INSERT(t *testing.T) {
 		msg, err = parse.Receive()
 		assert.Nil(t, err)
 		assert.IsType(t, &pgproto.NoData{}, msg)
-		//msg, err = parse.Receive()
-		//assert.Nil(t, err)
-		//assert.IsType(t, &pgproto.RowDescription{}, msg)
-		//msg, err = parse.Receive()
-		//assert.Nil(t, err)
-		//assert.IsType(t, &pgproto.DataRow{}, msg)
 		msg, err = parse.Receive()
 		assert.Nil(t, err)
 		assert.IsType(t, &pgproto.CommandComplete{}, msg)
@@ -686,9 +680,9 @@ func TestQueryFilter_Handle_SELECT(t *testing.T) {
 	buffer = (&pgproto.Bind{
 		DestinationPortal:    "",
 		PreparedStatement:    "",
-		ParameterFormatCodes: nil,
-		Parameters:           nil,
-		ResultFormatCodes:    nil,
+		ParameterFormatCodes: []int16{1},
+		Parameters:           [][]byte{{2}},
+		ResultFormatCodes:    []int16{0},
 	}).Encode(buffer)
 	buffer = (&pgproto.Describe{
 		ObjectType: 'P',
@@ -743,10 +737,10 @@ func TestQueryFilter_Handle_SELECT(t *testing.T) {
 		msgs, err = model.UnpackSqliTransmission(readseeker)
 		assert.Nil(t, err)
 		assert.IsType(t, &model.SqliID{}, msgs[0])
-		//assert.IsType(t, &model.SqliBind{}, msgs[1])
 		assert.IsType(t, &model.SqliCurName{}, msgs[1])
-		assert.IsType(t, &model.SqliOpen{}, msgs[2])
-		assert.IsType(t, &model.SqliEot{}, msgs[3])
+		assert.IsType(t, &model.SqliBind{}, msgs[2])
+		assert.IsType(t, &model.SqliOpen{}, msgs[3])
+		assert.IsType(t, &model.SqliEot{}, msgs[4])
 
 		c, err = gbBackend.Read(buf)
 		assert.Nil(t, err)

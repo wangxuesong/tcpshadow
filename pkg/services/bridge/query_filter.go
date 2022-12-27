@@ -18,6 +18,8 @@ var tupleNumber int
 var fieldsname [1024]string
 var data [1024]pgproto3.DataRow
 var idnumber int16
+var bindcondition int
+var binddata [][]byte
 
 func NewQueryFilter() *QueryFilter {
 	return &QueryFilter{}
@@ -56,7 +58,8 @@ func (f *QueryFilter) Handle(ctx services.Context) error {
 		_ = bind.DestinationPortal
 		_ = bind.PreparedStatement
 		_ = bind.ParameterFormatCodes
-		_ = bind.Parameters
+		bindcondition = len(bind.ParameterFormatCodes)
+		binddata = bind.Parameters
 		_ = bind.ResultFormatCodes
 		//describe
 		buf = msg[2].Encode(nil)
@@ -153,7 +156,6 @@ func (f *QueryFilter) Handle(ctx services.Context) error {
 			_ = describe.StatementType
 			idnumber = int16(describe.StatementID)
 			_ = describe.EstimatedCost
-			_ = describe.TupleSize
 			_ = describe.CountOfFields
 			_ = describe.StringTable
 			for i := 0; i < len(describe.Fields); i++ {
@@ -250,13 +252,23 @@ func (f *QueryFilter) Handle(ctx services.Context) error {
 			curname := &model.SqliCurName{
 				CurName: "_ifxc0000000000000",
 			}
-			//bind := &model.SqliBind{
-			//	Columns: nil,
-			//}
+			bindint := &model.BindColumnInt{
+				Type:      2,
+				Indicator: 0,
+				Precision: 2560,
+				Data:      uint16(binddata[0][0]),
+			}
+			bind := &model.SqliBind{
+				Columns: []model.BindColumn{*bindint},
+			}
 			open := &model.SqliOpen{}
 			eot := &model.SqliEot{}
 			var transmission model.SqliTransmission
-			transmission = []model.SqliCommand{id, curname, open, eot}
+			if bindcondition != 0 {
+				transmission = []model.SqliCommand{id, curname, bind, open, eot}
+			} else {
+				transmission = []model.SqliCommand{id, curname, open, eot}
+			}
 			buf, err = transmission.Pack()
 			if err != nil {
 				return err
@@ -349,13 +361,23 @@ func (f *QueryFilter) Handle(ctx services.Context) error {
 			id := &model.SqliID{
 				ID: idnumber,
 			}
-			//bind := &model.SqliBind{
-			//	Columns: []model.BindColumn{},
-			//}
+			bindint := &model.BindColumnInt{
+				Type:      2,
+				Indicator: 0,
+				Precision: 2560,
+				Data:      uint16(binddata[0][0]),
+			}
+			bind := &model.SqliBind{
+				Columns: []model.BindColumn{*bindint},
+			}
 			execute := &model.SqliExecute{}
 			eot := &model.SqliEot{}
 			var transmission model.SqliTransmission
-			transmission = []model.SqliCommand{id, execute, eot}
+			if bindcondition != 0 {
+				transmission = []model.SqliCommand{id, bind, execute, eot}
+			} else {
+				transmission = []model.SqliCommand{id, execute, eot}
+			}
 			buf, err = transmission.Pack()
 			if err != nil {
 				return err
