@@ -1,13 +1,11 @@
 package services
 
 import (
+	"github.com/wangxuesong/tcpshadow/model"
 	"io"
 	"log"
 	"net"
 	"sync"
-	"time"
-
-	"github.com/wangxuesong/tcpshadow/model"
 )
 
 type (
@@ -81,7 +79,7 @@ func (s *ProxyService) proxyData(src net.Conn, dest net.Conn, forward model.Data
 			return
 		default:
 		}
-		_ = src.SetDeadline(time.Now().Add(1e9))
+		//_ = src.SetDeadline(time.Now().Add(1e9))
 		buf := make([]byte, 16384)
 		cnt, err := src.Read(buf)
 		if nil != err {

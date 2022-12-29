@@ -2,7 +2,10 @@ package bridge
 
 import (
 	"bytes"
+	"encoding/binary"
 	"fmt"
+	"github.com/zhuangsirui/binpacker"
+	"strings"
 
 	"github.com/jackc/pgproto3"
 	"github.com/wangxuesong/tcpshadow/model"
@@ -19,8 +22,11 @@ var fieldsname [1024]string
 var data [1024]pgproto3.DataRow
 var idnumber int16
 var bindcondition int
-var binddata [][]byte
+
+// var binddata [][]byte
 var bindtype []uint32
+var datebindint uint16
+var datebindchar string
 
 func NewQueryFilter() *QueryFilter {
 	return &QueryFilter{}
@@ -48,6 +54,7 @@ func (f *QueryFilter) Handle(ctx services.Context) error {
 			return err
 		}
 		sql := parse.Query
+		sql = strings.ReplaceAll(sql, "$", "")
 		condition = sql[:6]
 		bindtype = parse.ParameterOIDs
 		paranumber := len(parse.ParameterOIDs)
@@ -63,7 +70,21 @@ func (f *QueryFilter) Handle(ctx services.Context) error {
 		_ = bind.PreparedStatement
 		_ = bind.ParameterFormatCodes
 		bindcondition = len(bind.ParameterFormatCodes)
-		binddata = bind.Parameters
+		binddata := bind.Parameters
+		for c, t := range bindtype {
+			if t == 23 && len(bindtype) == 1 {
+				//TODO 不发SQ_CIDESCRIBE消息，直接绑定执行
+			} else if t == 23 {
+				r := bytes.NewReader(binddata[c])
+				unpacker := binpacker.NewUnpacker(binary.BigEndian, r)
+				var pad uint16
+				unpacker.FetchUint16(&pad).FetchUint16(&datebindint)
+			} else {
+				r := bytes.NewReader(binddata[c])
+				unpacker := binpacker.NewUnpacker(binary.BigEndian, r)
+				unpacker.FetchString(uint64(len(binddata[c])), &datebindchar)
+			}
+		}
 		_ = bind.ResultFormatCodes
 
 		//describe
@@ -265,17 +286,28 @@ func (f *QueryFilter) Handle(ctx services.Context) error {
 			if bindcondition != 0 {
 				for _, c := range bindtype {
 					var bindType int16
+					bindint := &model.BindColumnInt{}
+					bindchar := &model.BindColumnChar{}
 					switch c {
 					case 23:
 						bindType = 2
+						bindint = &model.BindColumnInt{
+							Type:      bindType,
+							Indicator: 0,
+							Precision: 2560,
+							Data:      datebindint,
+						}
+						bind.Columns = []model.BindColumn{*bindint}
+					case 1043:
+						bindType = 0
+						bindchar = &model.BindColumnChar{
+							Type:      bindType,
+							Indicator: 0,
+							Precision: 0,
+							Data:      datebindchar,
+						}
+						bind.Columns = []model.BindColumn{*bindchar}
 					}
-					bindint := &model.BindColumnInt{
-						Type:      bindType,
-						Indicator: 0,
-						Precision: 2560,
-						Data:      uint16(binddata[0][0]),
-					}
-					bind.Columns = []model.BindColumn{*bindint}
 				}
 			}
 			open := &model.SqliOpen{}
@@ -384,17 +416,28 @@ func (f *QueryFilter) Handle(ctx services.Context) error {
 			if bindcondition != 0 {
 				for _, c := range bindtype {
 					var bindType int16
+					bindint := &model.BindColumnInt{}
+					bindchar := &model.BindColumnChar{}
 					switch c {
 					case 23:
 						bindType = 2
+						bindint = &model.BindColumnInt{
+							Type:      bindType,
+							Indicator: 0,
+							Precision: 2560,
+							Data:      datebindint,
+						}
+						bind.Columns = []model.BindColumn{*bindint}
+					case 1043:
+						bindType = 0
+						bindchar = &model.BindColumnChar{
+							Type:      bindType,
+							Indicator: 0,
+							Precision: 0,
+							Data:      datebindchar,
+						}
+						bind.Columns = []model.BindColumn{*bindchar}
 					}
-					bindint := &model.BindColumnInt{
-						Type:      bindType,
-						Indicator: 0,
-						Precision: 2560,
-						Data:      uint16(binddata[0][0]),
-					}
-					bind.Columns = []model.BindColumn{*bindint}
 				}
 			}
 			execute := &model.SqliExecute{}
