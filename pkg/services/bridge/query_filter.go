@@ -71,9 +71,7 @@ func (f *QueryFilter) Handle(ctx services.Context) error {
 		bindcondition = len(bind.ParameterFormatCodes)
 		binddata := bind.Parameters
 		for c, t := range bindtype {
-			if t == 23 && len(bindtype) == 1 {
-				//TODO 不发SQ_CIDESCRIBE消息，直接绑定执行
-			} else if t == 23 {
+			if t == 23 {
 				r := bytes.NewReader(binddata[c])
 				unpacker := binpacker.NewUnpacker(binary.BigEndian, r)
 				var pad uint16
@@ -268,15 +266,6 @@ func (f *QueryFilter) Handle(ctx services.Context) error {
 			}
 			_ = idescribe.Inputfields
 			idesfields = idescribe.Fields
-			//for c, v := range idesfields {
-			//	if bindtype[c] == 1043 && v.Type == 2 {
-			//		uuint64, err := strconv.ParseUint(datebindchar, 10, 64)
-			//		if err != nil {
-			//			return err
-			//		}
-			//		datebindint = uint16(uuint64)
-			//	}
-			//}
 			_ = idescribe.Fields
 
 			//eot
