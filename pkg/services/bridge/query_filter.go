@@ -22,11 +22,10 @@ var fieldsname [1024]string
 var data [1024]pgproto3.DataRow
 var idnumber int16
 var bindcondition int
-
-// var binddata [][]byte
 var bindtype []uint32
 var datebindint uint16
 var datebindchar string
+var idesfields []model.Sqlifields
 
 func NewQueryFilter() *QueryFilter {
 	return &QueryFilter{}
@@ -54,7 +53,7 @@ func (f *QueryFilter) Handle(ctx services.Context) error {
 			return err
 		}
 		sql := parse.Query
-		sql = strings.ReplaceAll(sql, "$", "")
+		sql = strings.ReplaceAll(sql, "$1", "?")
 		condition = sql[:6]
 		bindtype = parse.ParameterOIDs
 		paranumber := len(parse.ParameterOIDs)
@@ -268,6 +267,16 @@ func (f *QueryFilter) Handle(ctx services.Context) error {
 				return err
 			}
 			_ = idescribe.Inputfields
+			idesfields = idescribe.Fields
+			//for c, v := range idesfields {
+			//	if bindtype[c] == 1043 && v.Type == 2 {
+			//		uuint64, err := strconv.ParseUint(datebindchar, 10, 64)
+			//		if err != nil {
+			//			return err
+			//		}
+			//		datebindint = uint16(uuint64)
+			//	}
+			//}
 			_ = idescribe.Fields
 
 			//eot

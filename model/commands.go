@@ -325,6 +325,19 @@ func (sq *SqliBind) Pack() ([]byte, error) {
 				PushInt16(c.Indicator).
 				PushUint16(precisionLow).PushUint16(precisionHigh).
 				PushUint16(c.Data)
+		case 0:
+			var c BindColumnChar
+			c = cc.(BindColumnChar)
+			packer.PushInt16(c.Type).
+				PushInt16(c.Indicator).
+				PushUint16(c.Precision)
+			var count uint16
+			count = uint16(len(c.Data))
+			packer.PushUint16(count).PushString(c.Data)
+			var pad byte
+			if len(c.Data)%2 != 0 {
+				packer.PushByte(pad)
+			}
 		}
 	}
 
@@ -352,7 +365,7 @@ func (sq *SqliBind) Unpack(r io.Reader) error {
 				var pad byte
 				unpacker.FetchByte(&pad)
 			}
-			col.Precision = uint32(precsionLow)
+			col.Precision = precsionLow
 			sq.Columns = append(sq.Columns, col)
 		case 2:
 			col := BindColumnInt{Type: colType}
@@ -374,7 +387,7 @@ type BindColumn interface {
 type BindColumnChar struct {
 	Type      int16
 	Indicator int16
-	Precision uint32
+	Precision uint16
 	Data      string
 }
 
