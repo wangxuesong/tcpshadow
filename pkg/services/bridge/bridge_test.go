@@ -1496,3 +1496,97 @@ func TestConnect(t *testing.T) {
 		assert.IsType(t, &pgproto.ReadyForQuery{}, msg)
 	}
 }
+
+func TestConnectPro(t *testing.T) {
+	_, pgBackend := net.Pipe()
+	gbFront, gbBackend := net.Pipe()
+	filter := NewConnectFilter()
+	ctx := &Context{
+		sessionId: 0,
+		front:     pgBackend,
+		backend:   gbFront,
+		state:     ConnectState,
+		metadata:  make(map[string]interface{}),
+	}
+
+	ctx.SetMetaData("ConnectStage", "ConnectProtocol")
+
+	// 8s Server
+	go func() {
+		buf := make([]byte, 1024)
+		c, err := gbBackend.Read(buf)
+		buff := buf[:c]
+		re := bytes.NewReader(buff)
+		msgs, err := model.UnpackSqliTransmission(re)
+		assert.Nil(t, err)
+		assert.IsType(t, &model.SqliProtocols{}, msgs[0])
+		assert.IsType(t, &model.SqliEot{}, msgs[1])
+		assert.Nil(t, err)
+	}()
+
+	buff, err := (&model.AuthResponse{
+		Length:           287,
+		Noname1:          2,
+		Noname2:          15376,
+		Noname3:          0,
+		Noname4:          100,
+		Noname5:          101,
+		Noname6:          61,
+		IEEEIlength:      6,
+		IEEEI:            "IEEEI",
+		Noname7:          108,
+		Srvinfx:          "srvinfx",
+		Versionlength:    34,
+		Version:          "GBase Server Version 9.56.FC4G1TL",
+		Softwarelength:   35,
+		Software:         "Software Serial Number AAA#B000000",
+		Clientnamelength: 12,
+		Clientname:       "gbaseserver",
+		Noname8:          316,
+		Noname9:          0,
+		Noname10:         0,
+		Noname11:         0,
+		Noname12:         0,
+		Noname13:         0,
+		Noname14:         "on",
+		Noname15:         "=soctcp",
+		Noname16:         102,
+		Noname17:         0,
+		Noname18:         0,
+		Noname19:         20,
+		Noname20:         0,
+		Noname21:         107,
+		Noname22:         2958,
+		Noname23:         872,
+		Noname24:         13312,
+		Path1length:      11,
+		Path1:            "/dev/pts/0",
+		Path2length:      15,
+		Path2:            "/home/gbasedbt",
+		Noname25:         110,
+		Noname26:         4,
+		Noname27:         0,
+		Noname28:         0,
+		Noname29:         116,
+		Noname30:         43,
+		Noname31:         0,
+		Noname32:         1001,
+		Noname33:         0,
+		Noname34:         1001,
+		Path3length:      33,
+		Path3:            "/home/zhangyaru/gbase/bin/oninit",
+		Asceot:           127,
+	}).Pack()
+	assert.Nil(t, err)
+	ctx.SetData(&model.Data{
+		Forward: model.ServerToClient,
+		Buffer:  buff,
+	})
+	err = filter.Handle(ctx)
+	assert.Nil(t, err)
+	v, err := ctx.MetaData("ConnectStage")
+	assert.Nil(t, err)
+	stage, ok := v.(string)
+	assert.Equal(t, ok, true)
+	assert.Equal(t, stage, "ConnectInfo")
+}
