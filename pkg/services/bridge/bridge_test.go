@@ -376,7 +376,6 @@ func TestQueryFilter_Handle_INSERT_Bind(t *testing.T) {
 		assert.IsType(t, &model.SqliID{}, msgs[0])
 		assert.IsType(t, &model.SqliRelease{}, msgs[1])
 		assert.IsType(t, &model.SqliEot{}, msgs[2])
-
 	}()
 
 	go func() {
@@ -1589,4 +1588,53 @@ func TestConnectPro(t *testing.T) {
 	stage, ok := v.(string)
 	assert.Equal(t, ok, true)
 	assert.Equal(t, stage, "ConnectInfo")
+}
+
+func TestConnectInfo(t *testing.T) {
+	_, pgBackend := net.Pipe()
+	gbFront, gbBackend := net.Pipe()
+	filter := NewConnectFilter()
+	ctx := &Context{
+		sessionId: 0,
+		front:     pgBackend,
+		backend:   gbFront,
+		state:     ConnectState,
+		metadata:  make(map[string]interface{}),
+	}
+
+	ctx.SetMetaData("ConnectStage", "ConnectInfo")
+
+	// 8s Server
+	go func() {
+		buf := make([]byte, 1024)
+		c, err := gbBackend.Read(buf)
+		buff := buf[:c]
+		re := bytes.NewReader(buff)
+		msgs, err := model.UnpackSqliTransmission(re)
+		assert.Nil(t, err)
+		assert.IsType(t, &model.SqliInfo{}, msgs[0])
+		assert.IsType(t, &model.SqliEot{}, msgs[1])
+		assert.Nil(t, err)
+	}()
+
+	protocol := &model.SqliProtocols{
+		Protocol: []byte{0xff, 0xfc, 0x7f, 0xfc, 0x3c, 0x8c, 0xaa, 0x97, 0x10},
+	}
+	eot := &model.SqliEot{}
+	var transmission model.SqliTransmission
+	transmission = []model.SqliCommand{protocol, eot}
+	buf, err := transmission.Pack()
+	assert.Nil(t, err)
+	assert.Nil(t, err)
+	ctx.SetData(&model.Data{
+		Forward: model.ServerToClient,
+		Buffer:  buf,
+	})
+	err = filter.Handle(ctx)
+	assert.Nil(t, err)
+	v, err := ctx.MetaData("ConnectStage")
+	assert.Nil(t, err)
+	stage, ok := v.(string)
+	assert.Equal(t, ok, true)
+	assert.Equal(t, stage, "ConnectDbOpen")
 }
