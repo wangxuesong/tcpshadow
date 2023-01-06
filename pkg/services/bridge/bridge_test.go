@@ -1661,3 +1661,65 @@ func TestConnectSet(t *testing.T) {
 	assert.Equal(t, ok, true)
 	assert.Equal(t, stage, "ConnectSet")
 }
+
+func TestConnectSetEnd(t *testing.T) {
+	pgFront, pgBackend := net.Pipe()
+	gbFront, _ := net.Pipe()
+	filter := NewConnectFilter()
+	ctx := &Context{
+		sessionId: 0,
+		front:     pgBackend,
+		backend:   gbFront,
+		state:     ConnectState,
+		metadata:  make(map[string]interface{}),
+	}
+	ctx.requests = model.PgTransmission{&pgproto.StartupMessage{}}
+	ctx.SetMetaData("ConnectStage", "ConnectSet")
+
+	go func() {
+		parse, err := pgproto.NewFrontend(pgproto.NewChunkReader(pgFront), nil)
+		assert.Nil(t, err)
+		msg, err := parse.Receive()
+		assert.Nil(t, err)
+		assert.IsType(t, &pgproto.ParseComplete{}, msg)
+		msg, err = parse.Receive()
+		assert.Nil(t, err)
+		assert.IsType(t, &pgproto.BindComplete{}, msg)
+		msg, err = parse.Receive()
+		assert.Nil(t, err)
+		assert.IsType(t, &pgproto.CommandComplete{}, msg)
+		msg, err = parse.Receive()
+		assert.Nil(t, err)
+		assert.IsType(t, &pgproto.ReadyForQuery{}, msg)
+	}()
+
+	buffer := (&pgproto.Parse{
+		Name:          "",
+		Query:         "SET application_name = 'PostgreSQL JDBC Driver'",
+		ParameterOIDs: nil,
+	}).Encode(nil)
+	buffer = (&pgproto.Bind{
+		DestinationPortal:    "",
+		PreparedStatement:    "",
+		ParameterFormatCodes: nil,
+		Parameters:           nil,
+		ResultFormatCodes:    nil,
+	}).Encode(buffer)
+	buffer = (&pgproto.Execute{
+		Portal:  "",
+		MaxRows: 0,
+	}).Encode(buffer)
+	buffer = (&pgproto.Sync{}).Encode(buffer)
+	ctx.SetData(&model.Data{
+		Forward: model.ClientToServer,
+		Buffer:  buffer,
+	})
+	err := filter.Handle(ctx)
+	assert.Nil(t, err)
+	v, err := ctx.MetaData("ConnectStage")
+	assert.Nil(t, err)
+	stage, ok := v.(string)
+	assert.Equal(t, ok, true)
+	assert.Equal(t, stage, "EndStage")
+	assert.Equal(t, ctx.state, SessionState("Query"))
+}
