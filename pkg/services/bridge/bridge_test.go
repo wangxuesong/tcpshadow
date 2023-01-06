@@ -258,6 +258,8 @@ func TestConnectFilter_Handle(t *testing.T) {
 			Forward: model.ClientToServer,
 			Buffer:  buffer,
 		})
+		err := filter.Handle(ctx)
+		assert.Nil(t, err)
 
 		buffer = (&pgproto.Parse{
 			Name:          "",
@@ -280,6 +282,8 @@ func TestConnectFilter_Handle(t *testing.T) {
 			Forward: model.ClientToServer,
 			Buffer:  buffer,
 		})
+		err = filter.Handle(ctx)
+		assert.Nil(t, err)
 	}
 
 	assert.True(t, server_passed)
