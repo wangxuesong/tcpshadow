@@ -2084,3 +2084,56 @@ func TestQueryS7(t *testing.T) {
 	assert.Equal(t, ok, true)
 	assert.Equal(t, stage, "QueryRelease")
 }
+
+func TestQueryS9(t *testing.T) {
+	pgFront, pgBackend := net.Pipe()
+	gbFront, _ := net.Pipe()
+	filter := NewQueryFilter()
+	ctx := &Context{
+		sessionId: 0,
+		front:     pgBackend,
+		backend:   gbFront,
+		state:     QueryState,
+		metadata:  make(map[string]interface{}),
+	}
+	ctx.SetMetaData("QueryStage", "QueryRelease")
+
+	go func() {
+		parse, err := pgproto.NewFrontend(pgproto.NewChunkReader(pgFront), nil)
+		assert.Nil(t, err)
+
+		msg, err := parse.Receive()
+		assert.Nil(t, err)
+		assert.IsType(t, &pgproto.ParseComplete{}, msg)
+		msg, err = parse.Receive()
+		assert.Nil(t, err)
+		assert.IsType(t, &pgproto.BindComplete{}, msg)
+		msg, err = parse.Receive()
+		assert.Nil(t, err)
+		assert.IsType(t, &pgproto.NoData{}, msg)
+		msg, err = parse.Receive()
+		assert.Nil(t, err)
+		assert.IsType(t, &pgproto.CommandComplete{}, msg)
+		msg, err = parse.Receive()
+		assert.Nil(t, err)
+		assert.IsType(t, &pgproto.ReadyForQuery{}, msg)
+	}()
+
+	eot := &model.SqliEot{}
+	var transmission model.SqliTransmission
+	transmission = []model.SqliCommand{eot}
+	buf, err := transmission.Pack()
+	assert.Nil(t, err)
+	ctx.SetData(&model.Data{
+		Forward: model.ServerToClient,
+		Buffer:  buf,
+	})
+	err = filter.Handle(ctx)
+	assert.Nil(t, err)
+	v, err := ctx.MetaData("QueryStage")
+	assert.Nil(t, err)
+	stage, ok := v.(string)
+	assert.Equal(t, ok, true)
+	assert.Equal(t, stage, EndStage)
+	assert.Equal(t, ctx.state, SessionState("Query"))
+}
