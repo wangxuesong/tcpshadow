@@ -2185,3 +2185,85 @@ func TestQueryS10(t *testing.T) {
 	assert.Equal(t, ok, true)
 	assert.Equal(t, stage, "QueryDone")
 }
+
+func TestQueryS11(t *testing.T) {
+	pgFront, pgBackend := net.Pipe()
+	gbFront, _ := net.Pipe()
+	filter := NewQueryFilter()
+	ctx := &Context{
+		sessionId: 0,
+		front:     pgBackend,
+		backend:   gbFront,
+		state:     QueryState,
+		metadata:  make(map[string]interface{}),
+	}
+	ctx.SetMetaData("QueryStage", "QueryDone")
+
+	go func() {
+		parse, err := pgproto.NewFrontend(pgproto.NewChunkReader(pgFront), nil)
+		assert.Nil(t, err)
+
+		msg, err := parse.Receive()
+		assert.Nil(t, err)
+		assert.IsType(t, &pgproto.ParseComplete{}, msg)
+		msg, err = parse.Receive()
+		assert.Nil(t, err)
+		assert.IsType(t, &pgproto.BindComplete{}, msg)
+		msg, err = parse.Receive()
+		assert.Nil(t, err)
+		assert.IsType(t, &pgproto.NoData{}, msg)
+		msg, err = parse.Receive()
+		assert.Nil(t, err)
+		assert.IsType(t, &pgproto.CommandComplete{}, msg)
+		msg, err = parse.Receive()
+		assert.Nil(t, err)
+		assert.IsType(t, &pgproto.ReadyForQuery{}, msg)
+	}()
+
+	tuple := &model.SqliTuple{
+		Warnings: 0,
+		Size:     4,
+		Fields: []model.SqliField{{
+			FieldIndex:              0,
+			ColumnStartPos:          0,
+			ColumnType:              2,
+			ColumnExtendedBuiltinId: 0,
+			OwnerName:               "",
+			ExtendedName:            "",
+			Reference:               0,
+			Alignment:               0,
+			SourceType:              0,
+			Length:                  4,
+			Name:                    "id",
+		},
+		},
+	}
+	done := &model.SqliDone{
+		Warning:  0,
+		Rows:     3,
+		RowID:    259,
+		SerialID: 0,
+	}
+	cost := &model.SqliCost{
+		EstimatedRows: 32,
+		EstimatedIO:   2,
+	}
+	eot := &model.SqliEot{}
+	var transmission model.SqliTransmission
+	transmission = []model.SqliCommand{tuple, tuple, tuple, done, cost, eot}
+	buffer, err := transmission.Pack()
+	assert.Nil(t, err)
+	//TODO: 将 buffer 改成正式的 sqli 数据
+	ctx.SetData(&model.Data{
+		Forward: model.ServerToClient,
+		Buffer:  buffer,
+	})
+	err = filter.Handle(ctx)
+	assert.Nil(t, err)
+	v, err := ctx.MetaData("QueryStage")
+	assert.Nil(t, err)
+	stage, ok := v.(string)
+	assert.Equal(t, ok, true)
+	assert.Equal(t, stage, EndStage)
+	assert.Equal(t, ctx.state, SessionState("Query"))
+}
