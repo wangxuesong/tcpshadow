@@ -2137,3 +2137,51 @@ func TestQueryS9(t *testing.T) {
 	assert.Equal(t, stage, EndStage)
 	assert.Equal(t, ctx.state, SessionState("Query"))
 }
+
+func TestQueryS10(t *testing.T) {
+	_, pgBackend := net.Pipe()
+	gbFront, gbBackend := net.Pipe()
+	filter := NewQueryFilter()
+	ctx := &Context{
+		sessionId: 0,
+		front:     pgBackend,
+		backend:   gbFront,
+		state:     QueryState,
+		metadata:  make(map[string]interface{}),
+	}
+	ctx.SetMetaData("QueryStage", "QueryOpen")
+
+	go func() {
+		//defer func() { server_passed = true }()
+		buf := make([]byte, 1024)
+		c, err := gbBackend.Read(buf)
+		assert.Nil(t, err)
+		assert.True(t, c > 0)
+		buff := buf[:c]
+		readseeker := bytes.NewReader(buff)
+		msgs, err := model.UnpackSqliTransmission(readseeker)
+		assert.Nil(t, err)
+		assert.IsType(t, &model.SqliID{}, msgs[0])
+		assert.IsType(t, &model.SqliRetType{}, msgs[1])
+		assert.IsType(t, &model.SqliNFetch{}, msgs[2])
+		assert.IsType(t, &model.SqliEot{}, msgs[3])
+	}()
+
+	eot := &model.SqliEot{}
+	var transmission model.SqliTransmission
+	transmission = []model.SqliCommand{eot}
+	buffer, err := transmission.Pack()
+	assert.Nil(t, err)
+	//TODO: 将 buffer 改成正式的 sqli 数据
+	ctx.SetData(&model.Data{
+		Forward: model.ServerToClient,
+		Buffer:  buffer,
+	})
+	err = filter.Handle(ctx)
+	assert.Nil(t, err)
+	v, err := ctx.MetaData("QueryStage")
+	assert.Nil(t, err)
+	stage, ok := v.(string)
+	assert.Equal(t, ok, true)
+	assert.Equal(t, stage, "QueryDone")
+}
