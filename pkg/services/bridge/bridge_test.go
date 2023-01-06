@@ -1953,3 +1953,73 @@ func TestQueryS3(t *testing.T) {
 	assert.Equal(t, ok, true)
 	assert.Equal(t, stage, "QueryExecuteDone")
 }
+
+func TestQueryS5(t *testing.T) {
+	_, pgBackend := net.Pipe()
+	gbFront, gbBackend := net.Pipe()
+	filter := NewQueryFilter()
+	ctx := &Context{
+		sessionId: 0,
+		front:     pgBackend,
+		backend:   gbFront,
+		state:     QueryState,
+		metadata:  make(map[string]interface{}),
+	}
+	ctx.SetMetaData("QueryStage", "QuerySelectIDescribeDone")
+
+	go func() {
+		//defer func() { server_passed = true }()
+		buf := make([]byte, 1024)
+		c, err := gbBackend.Read(buf)
+		assert.Nil(t, err)
+		assert.True(t, c > 0)
+		buff := buf[:c]
+		readseeker := bytes.NewReader(buff)
+		msgs, err := model.UnpackSqliTransmission(readseeker)
+		assert.Nil(t, err)
+		assert.IsType(t, &model.SqliID{}, msgs[0])
+		assert.IsType(t, &model.SqliCurName{}, msgs[1])
+		assert.IsType(t, &model.SqliOpen{}, msgs[2])
+		assert.IsType(t, &model.SqliEot{}, msgs[3])
+	}()
+
+	idescribe := &model.SqliIdescribe{
+		Inputfields: 2,
+		Fields: []model.Sqlifields{{
+			Type:                 2,
+			ExtendID:             0,
+			OwnerNameLength:      0,
+			ExtendTypeNameLength: 0,
+			PassByReferenceFlag:  0,
+			Alignment:            0,
+			SourceType:           0,
+			Length:               4,
+		}, {
+			Type:                 2,
+			ExtendID:             0,
+			OwnerNameLength:      0,
+			ExtendTypeNameLength: 0,
+			PassByReferenceFlag:  0,
+			Alignment:            0,
+			SourceType:           0,
+			Length:               4,
+		}},
+	}
+	eot := &model.SqliEot{}
+	var transmission model.SqliTransmission
+	transmission = []model.SqliCommand{idescribe, eot}
+	buffer, err := transmission.Pack()
+	assert.Nil(t, err)
+	//TODO: 将 buffer 改成正式的 sqli 数据
+	ctx.SetData(&model.Data{
+		Forward: model.ServerToClient,
+		Buffer:  buffer,
+	})
+	err = filter.Handle(ctx)
+	assert.Nil(t, err)
+	v, err := ctx.MetaData("QueryStage")
+	assert.Nil(t, err)
+	stage, ok := v.(string)
+	assert.Equal(t, ok, true)
+	assert.Equal(t, stage, "QueryOpen")
+}
