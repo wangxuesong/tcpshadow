@@ -1727,3 +1727,69 @@ func TestConnectSetEnd(t *testing.T) {
 	assert.Equal(t, stage, "EndStage")
 	assert.Equal(t, ctx.state, SessionState("Query"))
 }
+
+func TestQueryState(t *testing.T) {
+	_, pgBackend := net.Pipe()
+	gbFront, gbBackend := net.Pipe()
+	filter := NewQueryFilter()
+	ctx := &Context{
+		sessionId: 0,
+		front:     pgBackend,
+		backend:   gbFront,
+		state:     QueryState,
+		metadata:  make(map[string]interface{}),
+	}
+	sql := "insert into t values (1)"
+
+	go func() {
+		//defer func() { server_passed = true }()
+		buf := make([]byte, 1024)
+		c, err := gbBackend.Read(buf)
+		assert.Nil(t, err)
+		assert.True(t, c > 0)
+		buff := buf[:c]
+		readseeker := bytes.NewReader(buff)
+		msgs, err := model.UnpackSqliTransmission(readseeker)
+		assert.Nil(t, err)
+		assert.Equal(t, &model.SqliPrepare{
+			QMarks: 0,
+			Sql:    sql,
+		}, msgs[0])
+		assert.IsType(t, &model.SqliNDescribe{}, msgs[1])
+		assert.IsType(t, &model.SqliWantDone{}, msgs[2])
+		assert.IsType(t, &model.SqliEot{}, msgs[3])
+	}()
+
+	buffer := (&pgproto.Parse{
+		Name:          "",
+		Query:         sql,
+		ParameterOIDs: nil,
+	}).Encode(nil)
+	buffer = (&pgproto.Bind{
+		DestinationPortal:    "",
+		PreparedStatement:    "",
+		ParameterFormatCodes: nil,
+		Parameters:           nil,
+		ResultFormatCodes:    nil,
+	}).Encode(buffer)
+	buffer = (&pgproto.Describe{
+		ObjectType: 'P',
+		Name:       "",
+	}).Encode(buffer)
+	buffer = (&pgproto.Execute{
+		Portal:  "",
+		MaxRows: 1,
+	}).Encode(buffer)
+	buffer = (&pgproto.Sync{}).Encode(buffer)
+	ctx.SetData(&model.Data{
+		Forward: model.ClientToServer,
+		Buffer:  buffer,
+	})
+	err := filter.Handle(ctx)
+	assert.Nil(t, err)
+	v, err := ctx.MetaData("QueryStage")
+	assert.Nil(t, err)
+	stage, ok := v.(string)
+	assert.Equal(t, ok, true)
+	assert.Equal(t, stage, "QueryPrepareDone")
+}
