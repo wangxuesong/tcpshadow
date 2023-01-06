@@ -15,7 +15,6 @@ import (
 type QueryFilter struct {
 }
 
-var condition string
 var tuple [1024]model.SqliTuple
 var tupleNumber int
 var fieldsname [1024]string
@@ -54,7 +53,7 @@ func (f *QueryFilter) Handle(ctx services.Context) error {
 		}
 		sql := parse.Query
 		sql = strings.ReplaceAll(sql, "$1", "?")
-		condition = sql[:6]
+		err = ctx.SetMetaData("Condition", sql[:6])
 		bindtype = parse.ParameterOIDs
 		paranumber := len(parse.ParameterOIDs)
 
@@ -234,13 +233,14 @@ func (f *QueryFilter) Handle(ctx services.Context) error {
 				return err
 			}
 
-			if condition != "select" {
-				err = ctx.SetMetaData("QueryStage", "QueryIDescribeDone")
+			v, err := context.MetaData("Condition")
+			if v.(string) == "select" || v.(string) == "SELECT" {
+				err = ctx.SetMetaData("QueryStage", "QuerySelectIDescribeDone")
 				if err != nil {
 					return err
 				}
 			} else {
-				err = ctx.SetMetaData("QueryStage", "QuerySelectIDescribeDone")
+				err = ctx.SetMetaData("QueryStage", "QueryIDescribeDone")
 				if err != nil {
 					return err
 				}

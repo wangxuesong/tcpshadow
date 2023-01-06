@@ -1806,6 +1806,8 @@ func TestQueryS2(t *testing.T) {
 		metadata:  make(map[string]interface{}),
 	}
 	ctx.SetMetaData("QueryStage", "QueryPrepareDone")
+	//ctx.SetMetaData("Condition", "insert")
+	ctx.SetMetaData("Condition", "select")
 
 	go func() {
 		//defer func() { server_passed = true }()
@@ -1882,7 +1884,8 @@ func TestQueryS2(t *testing.T) {
 	assert.Nil(t, err)
 	stage, ok := v.(string)
 	assert.Equal(t, ok, true)
-	assert.Equal(t, stage, "QueryIDescribeDone")
+	//assert.Equal(t, stage, "QueryIDescribeDone")
+	assert.Equal(t, stage, "QuerySelectIDescribeDone")
 }
 
 func TestQueryS3(t *testing.T) {
