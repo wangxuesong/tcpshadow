@@ -2211,7 +2211,12 @@ func TestQueryS11(t *testing.T) {
 		assert.IsType(t, &pgproto.BindComplete{}, msg)
 		msg, err = parse.Receive()
 		assert.Nil(t, err)
-		assert.IsType(t, &pgproto.NoData{}, msg)
+		assert.IsType(t, &pgproto.RowDescription{}, msg)
+		for i := 0; i < 3; i++ {
+			msg, err = parse.Receive()
+			assert.Nil(t, err)
+			assert.IsType(t, &pgproto.DataRow{}, msg)
+		}
 		msg, err = parse.Receive()
 		assert.Nil(t, err)
 		assert.IsType(t, &pgproto.CommandComplete{}, msg)
