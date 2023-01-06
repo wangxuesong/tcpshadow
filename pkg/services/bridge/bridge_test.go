@@ -1542,3 +1542,61 @@ func TestConnectDbOpen(t *testing.T) {
 	assert.Equal(t, ok, true)
 	assert.Equal(t, stage, "ConnectDone")
 }
+
+func TestConnectDone(t *testing.T) {
+	pgFront, pgBackend := net.Pipe()
+	gbFront, _ := net.Pipe()
+	filter := NewConnectFilter()
+	ctx := &Context{
+		sessionId: 0,
+		front:     pgBackend,
+		backend:   gbFront,
+		state:     ConnectState,
+		metadata:  make(map[string]interface{}),
+	}
+	ctx.SetMetaData("ConnectStage", "ConnectDone")
+
+	go func() {
+		parse, err := pgproto.NewFrontend(pgproto.NewChunkReader(pgFront), nil)
+		assert.Nil(t, err)
+		msg, err := parse.Receive()
+		assert.Nil(t, err)
+		assert.IsType(t, &pgproto.Authentication{}, msg)
+		msg, err = parse.Receive()
+		assert.Nil(t, err)
+		assert.IsType(t, &pgproto.ParameterStatus{}, msg)
+		msg, err = parse.Receive()
+		assert.Nil(t, err)
+		assert.IsType(t, &pgproto.BackendKeyData{}, msg)
+		msg, err = parse.Receive()
+		assert.Nil(t, err)
+		assert.IsType(t, &pgproto.ReadyForQuery{}, msg)
+	}()
+
+	done := &model.SqliDone{
+		Warning:  21,
+		Rows:     0,
+		RowID:    0,
+		SerialID: 0,
+	}
+	cost := &model.SqliCost{
+		EstimatedRows: 1,
+		EstimatedIO:   1,
+	}
+	eot := &model.SqliEot{}
+	var transmission model.SqliTransmission
+	transmission = []model.SqliCommand{done, cost, eot}
+	buf, err := transmission.Pack()
+	assert.Nil(t, err)
+	ctx.SetData(&model.Data{
+		Forward: model.ServerToClient,
+		Buffer:  buf,
+	})
+	err = filter.Handle(ctx)
+	assert.Nil(t, err)
+	v, err := ctx.MetaData("ConnectStage")
+	assert.Nil(t, err)
+	stage, ok := v.(string)
+	assert.Equal(t, ok, true)
+	assert.Equal(t, stage, "ConnectSet")
+}
