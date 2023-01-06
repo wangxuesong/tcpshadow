@@ -1496,3 +1496,49 @@ func TestConnectInfo(t *testing.T) {
 	assert.Equal(t, ok, true)
 	assert.Equal(t, stage, "ConnectDbOpen")
 }
+
+func TestConnectDbOpen(t *testing.T) {
+	_, pgBackend := net.Pipe()
+	gbFront, gbBackend := net.Pipe()
+	filter := NewConnectFilter()
+	ctx := &Context{
+		sessionId: 0,
+		front:     pgBackend,
+		backend:   gbFront,
+		state:     ConnectState,
+		metadata:  make(map[string]interface{}),
+	}
+
+	ctx.SetMetaData("ConnectStage", "ConnectDbOpen")
+
+	// 8s Server
+	go func() {
+		buf := make([]byte, 1024)
+		c, err := gbBackend.Read(buf)
+		buff := buf[:c]
+		re := bytes.NewReader(buff)
+		msgs, err := model.UnpackSqliTransmission(re)
+		assert.Nil(t, err)
+		assert.IsType(t, &model.SqliDBOpen{}, msgs[0])
+		assert.IsType(t, &model.SqliEot{}, msgs[1])
+		assert.Nil(t, err)
+	}()
+
+	eot := &model.SqliEot{}
+	var transmission model.SqliTransmission
+	transmission = []model.SqliCommand{eot}
+	buf, err := transmission.Pack()
+	assert.Nil(t, err)
+	assert.Nil(t, err)
+	ctx.SetData(&model.Data{
+		Forward: model.ServerToClient,
+		Buffer:  buf,
+	})
+	err = filter.Handle(ctx)
+	assert.Nil(t, err)
+	v, err := ctx.MetaData("ConnectStage")
+	assert.Nil(t, err)
+	stage, ok := v.(string)
+	assert.Equal(t, ok, true)
+	assert.Equal(t, stage, "ConnectDone")
+}
