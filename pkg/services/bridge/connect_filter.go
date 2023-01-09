@@ -44,59 +44,7 @@ func NewConnectFilter() *ConnectFilter {
 }
 
 func (c *ConnectFilter) Handle(ctx services.Context) error {
-	_ = bytes.NewBuffer(ctx.Data().Buffer)
-	if ctx.Data().Forward == model.ClientToServer {
-		context, ok := ctx.(*Context)
-		if !ok {
-			return fmt.Errorf("unknown context type: %T", ctx)
-		}
-
-		if context.requests == nil {
-			c.handler.Handle(c, ctx)
-		} else {
-			c.handler.Handle(c, ctx)
-		}
-		v, err := context.MetaData("ConnectStage")
-		if err != nil {
-			return err
-		}
-		stage, ok := v.(string)
-		if !ok {
-			return fmt.Errorf("mistake metadata type: %T", v)
-		}
-		if ok && stage == EndStage {
-			context.state = QueryState
-		}
-	}
-
-	if ctx.Data().Forward == model.ServerToClient {
-		context, ok := ctx.(*Context)
-		if !ok {
-			return fmt.Errorf("unknown context type: %T", ctx)
-		}
-
-		//TODO: receive from 8s
-		v, err := context.MetaData("ConnectStage")
-		if err != nil {
-			return err
-		}
-		stage, ok := v.(string)
-		if !ok {
-			return fmt.Errorf("mistake metadata type: %T", v)
-		}
-		//reader := bytes.NewReader(ctx.Data().Buffer)
-		switch stage {
-		case "ConnectProtocol":
-			c.handler.Handle(c, ctx)
-		case "ConnectInfo":
-			c.handler.Handle(c, ctx)
-		case "ConnectDbOpen":
-			c.handler.Handle(c, ctx)
-		case "ConnectDone":
-			c.handler.Handle(c, ctx)
-		}
-	}
-
+	c.handler.Handle(c, ctx)
 	return nil
 }
 
@@ -433,6 +381,18 @@ func (h *connectSet) Handle(filter *ConnectFilter, ctx services.Context) error {
 		if err != nil {
 			return err
 		}
+	}
+
+	v, err := context.MetaData("ConnectStage")
+	if err != nil {
+		return err
+	}
+	stage, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("mistake metadata type: %T", v)
+	}
+	if ok && stage == EndStage {
+		context.state = QueryState
 	}
 	return nil
 }
