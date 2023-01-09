@@ -287,6 +287,7 @@ func TestConnectFilter_Handle(t *testing.T) {
 	}
 
 	assert.True(t, server_passed)
+	assert.Equal(t, QueryState, ctx.state)
 }
 
 func TestQueryFilter_Handle_INSERT_Bind(t *testing.T) {
@@ -1356,6 +1357,7 @@ func TestConnectStart(t *testing.T) {
 	stage, ok := v.(string)
 	assert.Equal(t, ok, true)
 	assert.Equal(t, stage, "ConnectProtocol")
+	assert.IsType(t, &authResponseHandler{}, filter.handler)
 }
 
 func TestConnectPro(t *testing.T) {
@@ -1371,6 +1373,7 @@ func TestConnectPro(t *testing.T) {
 	}
 
 	ctx.SetMetaData("ConnectStage", "ConnectProtocol")
+	filter.SetHandler(&authResponseHandler{})
 
 	// 8s Server
 	go func() {
@@ -1450,12 +1453,14 @@ func TestConnectPro(t *testing.T) {
 	stage, ok := v.(string)
 	assert.Equal(t, ok, true)
 	assert.Equal(t, stage, "ConnectInfo")
+	assert.IsType(t, &protocolHandler{}, filter.handler)
 }
 
 func TestConnectInfo(t *testing.T) {
 	_, pgBackend := net.Pipe()
 	gbFront, gbBackend := net.Pipe()
 	filter := NewConnectFilter()
+	filter.SetHandler(&protocolHandler{})
 	ctx := &Context{
 		sessionId: 0,
 		front:     pgBackend,
@@ -1499,12 +1504,14 @@ func TestConnectInfo(t *testing.T) {
 	stage, ok := v.(string)
 	assert.Equal(t, ok, true)
 	assert.Equal(t, stage, "ConnectDbOpen")
+	assert.IsType(t, &infoHandler{}, filter.handler)
 }
 
 func TestConnectDbOpen(t *testing.T) {
 	_, pgBackend := net.Pipe()
 	gbFront, gbBackend := net.Pipe()
 	filter := NewConnectFilter()
+	filter.SetHandler(&infoHandler{})
 	ctx := &Context{
 		sessionId: 0,
 		front:     pgBackend,
@@ -1545,12 +1552,14 @@ func TestConnectDbOpen(t *testing.T) {
 	stage, ok := v.(string)
 	assert.Equal(t, ok, true)
 	assert.Equal(t, stage, "ConnectDone")
+	assert.IsType(t, dbOpenHandler{}, filter.handler)
 }
 
 func TestConnectDone(t *testing.T) {
 	pgFront, pgBackend := net.Pipe()
 	gbFront, _ := net.Pipe()
 	filter := NewConnectFilter()
+	filter.SetHandler(&dbOpenHandler{})
 	ctx := &Context{
 		sessionId: 0,
 		front:     pgBackend,
@@ -1603,12 +1612,14 @@ func TestConnectDone(t *testing.T) {
 	stage, ok := v.(string)
 	assert.Equal(t, ok, true)
 	assert.Equal(t, stage, "ConnectSet")
+	assert.IsType(t, &connectDone{}, filter.handler)
 }
 
 func TestConnectSet(t *testing.T) {
 	pgFront, pgBackend := net.Pipe()
 	gbFront, _ := net.Pipe()
 	filter := NewConnectFilter()
+	filter.SetHandler(&connectDone{})
 	ctx := &Context{
 		sessionId: 0,
 		front:     pgBackend,
@@ -1664,12 +1675,14 @@ func TestConnectSet(t *testing.T) {
 	stage, ok := v.(string)
 	assert.Equal(t, ok, true)
 	assert.Equal(t, stage, "ConnectSet")
+	assert.IsType(t, &connectSet{}, filter.handler)
 }
 
 func TestConnectSetEnd(t *testing.T) {
 	pgFront, pgBackend := net.Pipe()
 	gbFront, _ := net.Pipe()
 	filter := NewConnectFilter()
+	filter.SetHandler(&connectSet{})
 	ctx := &Context{
 		sessionId: 0,
 		front:     pgBackend,
@@ -1726,6 +1739,7 @@ func TestConnectSetEnd(t *testing.T) {
 	assert.Equal(t, ok, true)
 	assert.Equal(t, stage, "EndStage")
 	assert.Equal(t, ctx.state, SessionState("Query"))
+	assert.IsType(t, &connectSet{}, filter.handler)
 }
 
 func TestQueryState(t *testing.T) {

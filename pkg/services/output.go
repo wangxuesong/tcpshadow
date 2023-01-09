@@ -173,7 +173,7 @@ func (o *ConsoleOutput) sDump(a interface{}) string {
 }
 
 func (o *ConsoleOutput) dump(color string, ctx Context) {
-	consolePrint(color, fmt.Sprintf("[%d] %s", ctx.SessionId, o.sDump(ctx.Data())))
+	consolePrint(color, fmt.Sprintf("[%d] %s", ctx.SessionId(), o.sDump(ctx.Data())))
 }
 
 func (o *ConsoleOutput) printConfig() *spew.ConfigState {
@@ -275,7 +275,7 @@ func (o *pgConsoleOutput) Write(ctx Context) error {
 }
 
 func printPackage(color string, ctx Context, str string) {
-	consolePrint(color, fmt.Sprintf("[%d] %s %s", ctx.SessionId, ctx.Data().Forward, str))
+	consolePrint(color, fmt.Sprintf("[%d] %s %s", ctx.SessionId(), ctx.Data().Forward, str))
 }
 
 func consolePrint(color string, str string) {
