@@ -1552,7 +1552,7 @@ func TestConnectDbOpen(t *testing.T) {
 	stage, ok := v.(string)
 	assert.Equal(t, ok, true)
 	assert.Equal(t, stage, "ConnectDone")
-	assert.IsType(t, dbOpenHandler{}, filter.handler)
+	assert.IsType(t, &dbOpenHandler{}, filter.handler)
 }
 
 func TestConnectDone(t *testing.T) {

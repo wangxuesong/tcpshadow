@@ -135,24 +135,7 @@ func (c *ConnectFilter) Handle(ctx services.Context) error {
 		case "ConnectInfo":
 			c.handler.Handle(c, ctx)
 		case "ConnectDbOpen":
-			//TODO: receive SqliEot
-			_, err := model.UnpackSqliTransmission(reader)
-
-			//TODO: send SqliDBOpen
-			deopen := &model.SqliDBOpen{
-				DBName: "dfe",
-				Foo:    0,
-			}
-			eot := &model.SqliEot{}
-			var transmission model.SqliTransmission
-			transmission = []model.SqliCommand{deopen, eot}
-			buf, err := transmission.Pack()
-			if err != nil {
-				return err
-			}
-			ctx.Data().Buffer = buf
-			context.backend.Write(ctx.Data().Buffer)
-			ctx.SetMetaData("ConnectStage", "ConnectDone")
+			c.handler.Handle(c, ctx)
 		case "ConnectDone":
 			//TODO: receive SqliDone
 			_, err := model.UnpackSqliTransmission(reader)
@@ -186,18 +169,6 @@ func (c *ConnectFilter) Handle(ctx services.Context) error {
 			//ctx.SetMetaData("ConnectStage", EndStage)
 			ctx.SetMetaData("ConnectStage", "ConnectSet")
 		}
-
-		//v, err = context.MetaData("ConnectStage")
-		//if err != nil {
-		//	return err
-		//}
-		//stage, ok = v.(string)
-		//if !ok {
-		//	return fmt.Errorf("mistake metadata type: %T", v)
-		//}
-		//if ok && stage == EndStage {
-		//	context.state = QueryState
-		//}
 	}
 
 	return nil
@@ -362,8 +333,6 @@ func (h *authResponseHandler) Handle(filter *ConnectFilter, ctx services.Context
 }
 
 func (h *protocolHandler) Handle(filter *ConnectFilter, ctx services.Context) error {
-	//TODO implement me
-	//panic("implement me")
 	if ctx.Data().Forward != model.ServerToClient {
 		panic("implement me")
 	}
@@ -405,8 +374,36 @@ func (h *protocolHandler) Handle(filter *ConnectFilter, ctx services.Context) er
 }
 
 func (h *infoHandler) Handle(filter *ConnectFilter, ctx services.Context) error {
-	//TODO implement me
-	panic("implement me")
+	if ctx.Data().Forward != model.ServerToClient {
+		panic("implement me")
+	}
+
+	context, ok := ctx.(*Context)
+	if !ok {
+		return fmt.Errorf("unknown context type: %T", ctx)
+	}
+
+	reader := bytes.NewReader(ctx.Data().Buffer)
+	//TODO: receive SqliEot
+	_, err := model.UnpackSqliTransmission(reader)
+
+	//TODO: send SqliDBOpen
+	deopen := &model.SqliDBOpen{
+		DBName: "dfe",
+		Foo:    0,
+	}
+	eot := &model.SqliEot{}
+	var transmission model.SqliTransmission
+	transmission = []model.SqliCommand{deopen, eot}
+	buf, err := transmission.Pack()
+	if err != nil {
+		return err
+	}
+	ctx.Data().Buffer = buf
+	context.backend.Write(ctx.Data().Buffer)
+	ctx.SetMetaData("ConnectStage", "ConnectDone")
+	filter.SetHandler(&dbOpenHandler{})
+	return nil
 }
 
 func (h *dbOpenHandler) Handle(filter *ConnectFilter, ctx services.Context) error {
