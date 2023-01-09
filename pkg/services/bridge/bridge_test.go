@@ -1612,14 +1612,14 @@ func TestConnectDone(t *testing.T) {
 	stage, ok := v.(string)
 	assert.Equal(t, ok, true)
 	assert.Equal(t, stage, "ConnectSet")
-	assert.IsType(t, &connectDone{}, filter.handler)
+	assert.IsType(t, &connectSet{}, filter.handler)
 }
 
 func TestConnectSet(t *testing.T) {
 	pgFront, pgBackend := net.Pipe()
 	gbFront, _ := net.Pipe()
 	filter := NewConnectFilter()
-	filter.SetHandler(&connectDone{})
+	filter.SetHandler(&connectSet{})
 	ctx := &Context{
 		sessionId: 0,
 		front:     pgBackend,

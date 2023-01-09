@@ -57,48 +57,7 @@ func (c *ConnectFilter) Handle(ctx services.Context) error {
 		if context.requests == nil {
 			c.handler.Handle(c, ctx)
 		} else {
-			parser := model.NewPgClientParser()
-			_, err := parser.Append(ctx.Data().Buffer)
-			if err != nil {
-				return err
-			}
-			msg, err := parser.ParseMessage()
-			if err != nil {
-				return err
-			}
-			buf := make([]byte, 2048)
-			//parse
-			buf = msg[0].Encode(nil)
-			parse := &pgproto3.Parse{}
-			err = parse.Decode(buf[5:])
-			if err != nil {
-				return err
-			}
-			query := parse.Query
-			tag := query[:3]
-			set := query[4:15]
-
-			parsecomplete := &pgproto3.ParseComplete{}
-			bindcomplete := &pgproto3.BindComplete{}
-			commandcomplete := &pgproto3.CommandComplete{CommandTag: tag}
-			readyforquery := &pgproto3.ReadyForQuery{TxStatus: 'T'}
-			context.responses = []model.PgCommand{parsecomplete, bindcomplete, commandcomplete, readyforquery}
-			buf, err = context.responses.Pack()
-			if err != nil {
-				return err
-			}
-			context.front.Write(buf)
-			if set != "application" {
-				err = ctx.SetMetaData("ConnectStage", "ConnectSet")
-				if err != nil {
-					return err
-				}
-			} else {
-				err = ctx.SetMetaData("ConnectStage", EndStage)
-				if err != nil {
-					return err
-				}
-			}
+			c.handler.Handle(c, ctx)
 		}
 		v, err := context.MetaData("ConnectStage")
 		if err != nil {
@@ -418,7 +377,7 @@ func (h *dbOpenHandler) Handle(filter *ConnectFilter, ctx services.Context) erro
 	}
 	//ctx.SetMetaData("ConnectStage", EndStage)
 	ctx.SetMetaData("ConnectStage", "ConnectSet")
-	filter.SetHandler(&connectDone{})
+	filter.SetHandler(&connectSet{})
 	return nil
 }
 
@@ -428,6 +387,60 @@ func (h *connectDone) Handle(filter *ConnectFilter, ctx services.Context) error 
 }
 
 func (h *connectSet) Handle(filter *ConnectFilter, ctx services.Context) error {
-	//TODO implement me
-	panic("implement me")
+	if ctx.Data().Forward != model.ClientToServer {
+		panic("implement me")
+	}
+
+	context, ok := ctx.(*Context)
+	if !ok {
+		return fmt.Errorf("unknown context type: %T", ctx)
+	}
+
+	parser := model.NewPgClientParser()
+	_, err := parser.Append(ctx.Data().Buffer)
+	if err != nil {
+		return err
+	}
+	msg, err := parser.ParseMessage()
+	if err != nil {
+		return err
+	}
+
+	buf := make([]byte, 2048)
+	//parse
+	buf = msg[0].Encode(nil)
+	parse := &pgproto3.Parse{}
+	err = parse.Decode(buf[5:])
+	if err != nil {
+		return err
+	}
+	query := parse.Query
+	tag := query[:3]
+	set := query[4:15]
+
+	parsecomplete := &pgproto3.ParseComplete{}
+	bindcomplete := &pgproto3.BindComplete{}
+	commandcomplete := &pgproto3.CommandComplete{CommandTag: tag}
+	readyforquery := &pgproto3.ReadyForQuery{TxStatus: 'T'}
+	context.responses = []model.PgCommand{parsecomplete, bindcomplete, commandcomplete, readyforquery}
+	buf, err = context.responses.Pack()
+	if err != nil {
+		return err
+	}
+	context.front.Write(buf)
+	if set != "application" {
+		err = ctx.SetMetaData("ConnectStage", "ConnectSet")
+		filter.SetHandler(&connectSet{})
+		return nil
+		if err != nil {
+			return err
+		}
+	} else {
+		err = ctx.SetMetaData("ConnectStage", EndStage)
+		filter.SetHandler(&connectSet{})
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
