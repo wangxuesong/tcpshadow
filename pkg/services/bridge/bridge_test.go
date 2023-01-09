@@ -7,6 +7,7 @@ import (
 	"github.com/wangxuesong/tcpshadow/model"
 	"net"
 	"strings"
+	"sync"
 	"testing"
 )
 
@@ -79,7 +80,10 @@ func TestConnectFilter_Handle(t *testing.T) {
 		assert.IsType(t, &model.SqliEot{}, msgs[1])
 	}()
 
+	wg := sync.WaitGroup{}
+	wg.Add(1)
 	go func() {
+		defer wg.Done()
 		err := filter.Handle(ctx)
 		assert.Nil(t, err)
 		// AuthResponse
@@ -237,6 +241,7 @@ func TestConnectFilter_Handle(t *testing.T) {
 	}()
 
 	{
+		wg.Wait()
 		buffer := (&pgproto.Parse{
 			Name:          "",
 			Query:         "SET extra_float_digits = 3",
