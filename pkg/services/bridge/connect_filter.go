@@ -33,9 +33,6 @@ type (
 	dbOpenHandler struct {
 	}
 
-	connectDone struct {
-	}
-
 	connectSet struct {
 	}
 )
@@ -379,11 +376,6 @@ func (h *dbOpenHandler) Handle(filter *ConnectFilter, ctx services.Context) erro
 	ctx.SetMetaData("ConnectStage", "ConnectSet")
 	filter.SetHandler(&connectSet{})
 	return nil
-}
-
-func (h *connectDone) Handle(filter *ConnectFilter, ctx services.Context) error {
-	//TODO implement me
-	panic("implement me")
 }
 
 func (h *connectSet) Handle(filter *ConnectFilter, ctx services.Context) error {
