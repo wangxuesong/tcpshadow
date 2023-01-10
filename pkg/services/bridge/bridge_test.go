@@ -7,7 +7,6 @@ import (
 	"github.com/wangxuesong/tcpshadow/model"
 	"net"
 	"strings"
-	"sync"
 	"testing"
 )
 
@@ -78,12 +77,24 @@ func TestConnectFilter_Handle(t *testing.T) {
 		assert.Nil(t, err)
 		assert.IsType(t, &model.SqliDBOpen{}, msgs[0])
 		assert.IsType(t, &model.SqliEot{}, msgs[1])
+
+		parse, err := pgproto.NewFrontend(pgproto.NewChunkReader(pgFront), nil)
+		assert.Nil(t, err)
+		msg, err := parse.Receive()
+		assert.Nil(t, err)
+		assert.IsType(t, &pgproto.Authentication{}, msg)
+		msg, err = parse.Receive()
+		assert.Nil(t, err)
+		assert.IsType(t, &pgproto.ParameterStatus{}, msg)
+		msg, err = parse.Receive()
+		assert.Nil(t, err)
+		assert.IsType(t, &pgproto.BackendKeyData{}, msg)
+		msg, err = parse.Receive()
+		assert.Nil(t, err)
+		assert.IsType(t, &pgproto.ReadyForQuery{}, msg)
 	}()
 
-	wg := sync.WaitGroup{}
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	func() {
 		err := filter.Handle(ctx)
 		assert.Nil(t, err)
 		// AuthResponse
@@ -191,23 +202,6 @@ func TestConnectFilter_Handle(t *testing.T) {
 		assert.Nil(t, err)
 	}()
 
-	{
-		parse, err := pgproto.NewFrontend(pgproto.NewChunkReader(pgFront), nil)
-		assert.Nil(t, err)
-		msg, err := parse.Receive()
-		assert.Nil(t, err)
-		assert.IsType(t, &pgproto.Authentication{}, msg)
-		msg, err = parse.Receive()
-		assert.Nil(t, err)
-		assert.IsType(t, &pgproto.ParameterStatus{}, msg)
-		msg, err = parse.Receive()
-		assert.Nil(t, err)
-		assert.IsType(t, &pgproto.BackendKeyData{}, msg)
-		msg, err = parse.Receive()
-		assert.Nil(t, err)
-		assert.IsType(t, &pgproto.ReadyForQuery{}, msg)
-	}
-
 	go func() {
 		parse, err := pgproto.NewFrontend(pgproto.NewChunkReader(pgFront), nil)
 		assert.Nil(t, err)
@@ -241,7 +235,6 @@ func TestConnectFilter_Handle(t *testing.T) {
 	}()
 
 	{
-		wg.Wait()
 		buffer := (&pgproto.Parse{
 			Name:          "",
 			Query:         "SET extra_float_digits = 3",
