@@ -1027,9 +1027,6 @@ func TestQueryFilter_Handle_SELECT_Bind(t *testing.T) {
 		msg, err = parse.Receive()
 		assert.Nil(t, err)
 		assert.IsType(t, &pgproto.BindComplete{}, msg)
-		//msg, err = parse.Receive()
-		//assert.Nil(t, err)
-		//assert.IsType(t, &pgproto.NoData{}, msg)
 		msg, err = parse.Receive()
 		assert.Nil(t, err)
 		assert.IsType(t, &pgproto.RowDescription{}, msg)
@@ -1915,6 +1912,9 @@ func TestQueryCIdescribeHandler(t *testing.T) {
 		metadata:  make(map[string]interface{}),
 	}
 	ctx.SetMetaData("QueryStage", "QueryIDescribeDone")
+	ctx.SetMetaData("Bindcondition", 0)
+	ctx.SetMetaData("Idnumber", int16(0))
+	//ctx.SetMetaData("Bindtype", 23)
 	filter.SetHandler(&cidescribeHandler{})
 
 	go func() {
@@ -1986,6 +1986,9 @@ func TestQueryCIdescribeSelectHandler(t *testing.T) {
 		metadata:  make(map[string]interface{}),
 	}
 	ctx.SetMetaData("QueryStage", "QuerySelectIDescribeDone")
+	ctx.SetMetaData("Bindcondition", 0)
+	ctx.SetMetaData("Idnumber", int16(0))
+	//ctx.SetMetaData("Bindtype", 23)
 	filter.SetHandler(&cidescribeSelectHandler{})
 
 	go func() {
@@ -2058,6 +2061,7 @@ func TestQueryExecuteHandler(t *testing.T) {
 		metadata:  make(map[string]interface{}),
 	}
 	ctx.SetMetaData("QueryStage", "QueryExecuteDone")
+	ctx.SetMetaData("Idnumber", int16(0))
 	filter.SetHandler(&executeHandler{})
 
 	go func() {
@@ -2175,6 +2179,7 @@ func TestQueryOpenHandler(t *testing.T) {
 		metadata:  make(map[string]interface{}),
 	}
 	ctx.SetMetaData("QueryStage", "QueryOpen")
+	ctx.SetMetaData("Idnumber", int16(0))
 	filter.SetHandler(&openHandler{})
 
 	go func() {
@@ -2225,6 +2230,7 @@ func TestQueryNFetchdoneHandler(t *testing.T) {
 		metadata:  make(map[string]interface{}),
 	}
 	ctx.SetMetaData("QueryStage", "QueryDone")
+	ctx.SetMetaData("Fieldsname", [1024]string{"id"})
 	filter.SetHandler(&nfetchdoneHandler{})
 
 	go func() {

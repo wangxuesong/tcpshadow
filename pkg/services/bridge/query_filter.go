@@ -46,17 +46,6 @@ type (
 	}
 )
 
-var tuple [1024]model.SqliTuple
-var tupleNumber int
-var fieldsname [1024]string
-var data [1024]pgproto3.DataRow
-var idnumber int16
-var bindcondition int
-var bindtype []uint32
-var datebindint uint16
-var datebindchar string
-var idesfields []model.Sqlifields
-
 func NewQueryFilter() *QueryFilter {
 	return &QueryFilter{
 		handler: &parseHandler{},
@@ -102,7 +91,8 @@ func (h *parseHandler) Handle(filter *QueryFilter, ctx services.Context) error {
 	sql := parse.Query
 	sql = strings.ReplaceAll(sql, "$1", "?")
 	err = ctx.SetMetaData("Condition", sql[:6])
-	bindtype = parse.ParameterOIDs
+	//bindtype = parse.ParameterOIDs
+	err = ctx.SetMetaData("Bindtype", parse.ParameterOIDs)
 	paranumber := len(parse.ParameterOIDs)
 
 	//bind
@@ -117,7 +107,10 @@ func (h *parseHandler) Handle(filter *QueryFilter, ctx services.Context) error {
 	_ = bind.ParameterFormatCodes
 	err = ctx.SetMetaData("Bindcondition", len(bind.ParameterFormatCodes))
 	binddata := bind.Parameters
-	for c, t := range bindtype {
+	a, err := context.MetaData("Bindtype")
+	var datebindint uint16
+	var datebindchar string
+	for c, t := range a.([]uint32) {
 		if t == 23 {
 			r := bytes.NewReader(binddata[c])
 			unpacker := binpacker.NewUnpacker(binary.BigEndian, r)
@@ -128,6 +121,14 @@ func (h *parseHandler) Handle(filter *QueryFilter, ctx services.Context) error {
 			unpacker := binpacker.NewUnpacker(binary.BigEndian, r)
 			unpacker.FetchString(uint64(len(binddata[c])), &datebindchar)
 		}
+	}
+	err = ctx.SetMetaData("Datebindint", datebindint)
+	if err != nil {
+		return err
+	}
+	err = ctx.SetMetaData("Datebindchar", datebindchar)
+	if err != nil {
+		return err
 	}
 	_ = bind.ResultFormatCodes
 
@@ -216,13 +217,15 @@ func (h *prepareHandler) Handle(filter *QueryFilter, ctx services.Context) error
 	}
 	_ = describe.StringTable
 	_ = describe.StatementType
-	idnumber = int16(describe.StatementID)
+	err = ctx.SetMetaData("Idnumber", int16(describe.StatementID))
 	_ = describe.EstimatedCost
 	_ = describe.CountOfFields
 	_ = describe.StringTable
+	var fieldsname [1024]string
 	for i := 0; i < len(describe.Fields); i++ {
 		fieldsname[i] = describe.Fields[i].Name
 	}
+	err = ctx.SetMetaData("Fieldsname", fieldsname)
 
 	//done
 	buf, err = msgs[1].Pack()
@@ -324,17 +327,28 @@ func (h *cidescribeHandler) Handle(filter *QueryFilter, ctx services.Context) er
 	_ = msgs[1]
 
 	//TODO: send Sqli
+	b, err := context.MetaData("Idnumber")
 	id := &model.SqliID{
-		ID: idnumber,
+		ID: b.(int16),
 	}
 	bind := &model.SqliBind{
 		Columns: []model.BindColumn{},
 	}
-	if bindcondition != 0 {
-		for _, c := range bindtype {
+	v, err := context.MetaData("Bindcondition")
+	if v != 0 {
+		a, err := context.MetaData("Bindtype")
+		if err != nil {
+			return err
+		}
+		for _, c := range a.([]uint32) {
 			var bindType int16
 			bindint := &model.BindColumnInt{}
 			bindchar := &model.BindColumnChar{}
+			t, err := context.MetaData("Datebindint")
+			p, err := context.MetaData("Datebindchar")
+			if err != nil {
+				return err
+			}
 			switch c {
 			case 23:
 				bindType = 2
@@ -342,7 +356,7 @@ func (h *cidescribeHandler) Handle(filter *QueryFilter, ctx services.Context) er
 					Type:      bindType,
 					Indicator: 0,
 					Precision: 2560,
-					Data:      datebindint,
+					Data:      t.(uint16),
 				}
 				bind.Columns = []model.BindColumn{*bindint}
 			case 1043:
@@ -351,7 +365,7 @@ func (h *cidescribeHandler) Handle(filter *QueryFilter, ctx services.Context) er
 					Type:      bindType,
 					Indicator: 0,
 					Precision: 0,
-					Data:      datebindchar,
+					Data:      p.(string),
 				}
 				bind.Columns = []model.BindColumn{*bindchar}
 			}
@@ -360,7 +374,6 @@ func (h *cidescribeHandler) Handle(filter *QueryFilter, ctx services.Context) er
 	execute := &model.SqliExecute{}
 	eot := &model.SqliEot{}
 	var transmission model.SqliTransmission
-	v, err := context.MetaData("Bindcondition")
 	if v != 0 {
 		transmission = []model.SqliCommand{id, bind, execute, eot}
 	} else {
@@ -445,8 +458,9 @@ func (h *executeHandler) Handle(filter *QueryFilter, ctx services.Context) error
 	_ = msgs[3]
 
 	//TODO: send Sqli
+	b, err := context.MetaData("Idnumber")
 	id := &model.SqliID{
-		ID: idnumber,
+		ID: b.(int16),
 	}
 	release := &model.SqliRelease{}
 	eot := &model.SqliEot{}
@@ -549,15 +563,16 @@ func (h *cidescribeSelectHandler) Handle(filter *QueryFilter, ctx services.Conte
 		return err
 	}
 	_ = idescribe.Inputfields
-	idesfields = idescribe.Fields
+	err = ctx.SetMetaData("Idesfields", idescribe.Fields)
 	_ = idescribe.Fields
 
 	//eot
 	_ = msgs[1]
 
 	//TODO: send Sqli
+	b, err := context.MetaData("Idnumber")
 	id := &model.SqliID{
-		ID: idnumber,
+		ID: b.(int16),
 	}
 	curname := &model.SqliCurName{
 		CurName: "_ifxc0000000000000",
@@ -565,11 +580,21 @@ func (h *cidescribeSelectHandler) Handle(filter *QueryFilter, ctx services.Conte
 	bind := &model.SqliBind{
 		Columns: []model.BindColumn{},
 	}
-	if bindcondition != 0 {
-		for _, c := range bindtype {
+	v, err := context.MetaData("Bindcondition")
+	if v != 0 {
+		a, err := context.MetaData("Bindtype")
+		if err != nil {
+			return err
+		}
+		for _, c := range a.([]uint32) {
 			var bindType int16
 			bindint := &model.BindColumnInt{}
 			bindchar := &model.BindColumnChar{}
+			t, err := context.MetaData("Datebindint")
+			p, err := context.MetaData("Datebindchar")
+			if err != nil {
+				return err
+			}
 			switch c {
 			case 23:
 				bindType = 2
@@ -577,7 +602,7 @@ func (h *cidescribeSelectHandler) Handle(filter *QueryFilter, ctx services.Conte
 					Type:      bindType,
 					Indicator: 0,
 					Precision: 2560,
-					Data:      datebindint,
+					Data:      t.(uint16),
 				}
 				bind.Columns = []model.BindColumn{*bindint}
 			case 1043:
@@ -586,7 +611,7 @@ func (h *cidescribeSelectHandler) Handle(filter *QueryFilter, ctx services.Conte
 					Type:      bindType,
 					Indicator: 0,
 					Precision: 0,
-					Data:      datebindchar,
+					Data:      p.(string),
 				}
 				bind.Columns = []model.BindColumn{*bindchar}
 			}
@@ -595,7 +620,6 @@ func (h *cidescribeSelectHandler) Handle(filter *QueryFilter, ctx services.Conte
 	open := &model.SqliOpen{}
 	eot := &model.SqliEot{}
 	var transmission model.SqliTransmission
-	v, err := context.MetaData("Bindcondition")
 	if v != 0 {
 		transmission = []model.SqliCommand{id, curname, bind, open, eot}
 	} else {
@@ -636,8 +660,9 @@ func (h *openHandler) Handle(filter *QueryFilter, ctx services.Context) error {
 	}
 
 	//TODO: send Sqli
+	b, err := context.MetaData("Idnumber")
 	id := &model.SqliID{
-		ID: idnumber,
+		ID: b.(int16),
 	}
 	rettype := &model.SqliRetType{
 		Direction: 1,
@@ -699,10 +724,12 @@ func (h *nfetchdoneHandler) Handle(filter *QueryFilter, ctx services.Context) er
 		return err
 	}
 	buf := make([]byte, 1024)
-	tupleNumber = len(msgs) - 3
+	err = ctx.SetMetaData("TupleNumber", len(msgs)-3)
 
 	//tuple
-	for i := 0; i < tupleNumber; i++ {
+	var tuple [1024]model.SqliTuple
+	t, err := context.MetaData("TupleNumber")
+	for i := 0; i < t.(int); i++ {
 		buf, err = msgs[i].Pack()
 		if err != nil {
 			return err
@@ -718,9 +745,10 @@ func (h *nfetchdoneHandler) Handle(filter *QueryFilter, ctx services.Context) er
 		//_ = tuple[i].Values
 		//_ = tuple[i].Fields
 	}
+	err = ctx.SetMetaData("Tuple", tuple)
 
 	//done
-	buf, err = msgs[tupleNumber].Pack()
+	buf, err = msgs[t.(int)].Pack()
 	if err != nil {
 		return err
 	}
@@ -733,7 +761,7 @@ func (h *nfetchdoneHandler) Handle(filter *QueryFilter, ctx services.Context) er
 	_ = done.Rows
 
 	//cost
-	buf, err = msgs[tupleNumber+1].Pack()
+	buf, err = msgs[t.(int)+1].Pack()
 	if err != nil {
 		return err
 	}
@@ -746,14 +774,15 @@ func (h *nfetchdoneHandler) Handle(filter *QueryFilter, ctx services.Context) er
 	_ = cost.EstimatedRows
 
 	//eot
-	_ = msgs[tupleNumber+2]
+	_ = msgs[t.(int)+2]
 
 	//TODO: send pg
-	p := &pgproto3.ParseComplete{}
-	b := &pgproto3.BindComplete{}
-	r := &pgproto3.RowDescription{Fields: []pgproto3.FieldDescription{
+	buff := (&pgproto3.ParseComplete{}).Encode(nil)
+	buff = (&pgproto3.BindComplete{}).Encode(buff)
+	m, err := context.MetaData("Fieldsname")
+	buff = (&pgproto3.RowDescription{Fields: []pgproto3.FieldDescription{
 		{
-			Name:                 fieldsname[0],
+			Name:                 m.([1024]string)[0],
 			TableOID:             40963,
 			TableAttributeNumber: 1,
 			DataTypeOID:          23,
@@ -761,19 +790,21 @@ func (h *nfetchdoneHandler) Handle(filter *QueryFilter, ctx services.Context) er
 			TypeModifier:         -1,
 			Format:               0,
 		},
-	}}
+	}}).Encode(buff)
 
 	response := [][]byte{[]byte("1")}
+	var data [1024]pgproto3.DataRow
 	for i := 0; i < 3; i++ {
 		data[i].Values = response
 	}
-	c := &pgproto3.CommandComplete{CommandTag: "SELECT 1"}
-	re := &pgproto3.ReadyForQuery{TxStatus: 'I'}
-	context.responses = []model.PgCommand{p, b, r, &data[0], &data[1], &data[2], c, re}
-	buff, err := context.responses.Pack()
-	if err != nil {
-		return err
-	}
+	err = ctx.SetMetaData("Data", data)
+	n, err := context.MetaData("Data")
+	row := n.([1024]pgproto3.DataRow)
+	buff = row[0].Encode(buff)
+	buff = row[1].Encode(buff)
+	buff = row[2].Encode(buff)
+	buff = (&pgproto3.CommandComplete{CommandTag: "SELECT 1"}).Encode(buff)
+	buff = (&pgproto3.ReadyForQuery{TxStatus: 'I'}).Encode(buff)
 
 	_, err = context.front.Write(buff)
 	if err != nil {
