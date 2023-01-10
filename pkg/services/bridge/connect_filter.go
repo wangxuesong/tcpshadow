@@ -44,8 +44,7 @@ func NewConnectFilter() *ConnectFilter {
 }
 
 func (c *ConnectFilter) Handle(ctx services.Context) error {
-	c.handler.Handle(c, ctx)
-	return nil
+	return c.handler.Handle(c, ctx)
 }
 
 func (c *ConnectFilter) SetHandler(handler ConnectHandler) {
@@ -54,7 +53,7 @@ func (c *ConnectFilter) SetHandler(handler ConnectHandler) {
 
 func (h *startMessageHandler) Handle(filter *ConnectFilter, ctx services.Context) error {
 	if ctx.Data().Forward != model.ClientToServer {
-		panic("implement me")
+		return fmt.Errorf(" The error direction of the message is %T", model.ServerToClient)
 	}
 
 	buff := bytes.NewBuffer(ctx.Data().Buffer)
@@ -176,7 +175,7 @@ func (h *startMessageHandler) Handle(filter *ConnectFilter, ctx services.Context
 
 func (h *authResponseHandler) Handle(filter *ConnectFilter, ctx services.Context) error {
 	if ctx.Data().Forward != model.ServerToClient {
-		panic("implement me")
+		return fmt.Errorf(" The error direction of the message is %T", model.ClientToServer)
 	}
 
 	context, ok := ctx.(*Context)
@@ -208,7 +207,7 @@ func (h *authResponseHandler) Handle(filter *ConnectFilter, ctx services.Context
 
 func (h *protocolHandler) Handle(filter *ConnectFilter, ctx services.Context) error {
 	if ctx.Data().Forward != model.ServerToClient {
-		panic("implement me")
+		return fmt.Errorf(" The error direction of the message is %T", model.ClientToServer)
 	}
 
 	context, ok := ctx.(*Context)
@@ -249,7 +248,7 @@ func (h *protocolHandler) Handle(filter *ConnectFilter, ctx services.Context) er
 
 func (h *infoHandler) Handle(filter *ConnectFilter, ctx services.Context) error {
 	if ctx.Data().Forward != model.ServerToClient {
-		panic("implement me")
+		return fmt.Errorf(" The error direction of the message is %T", model.ClientToServer)
 	}
 
 	context, ok := ctx.(*Context)
@@ -282,7 +281,7 @@ func (h *infoHandler) Handle(filter *ConnectFilter, ctx services.Context) error 
 
 func (h *dbOpenHandler) Handle(filter *ConnectFilter, ctx services.Context) error {
 	if ctx.Data().Forward != model.ServerToClient {
-		panic("implement me")
+		return fmt.Errorf(" The error direction of the message is %T", model.ClientToServer)
 	}
 
 	context, ok := ctx.(*Context)
@@ -328,7 +327,7 @@ func (h *dbOpenHandler) Handle(filter *ConnectFilter, ctx services.Context) erro
 
 func (h *connectSet) Handle(filter *ConnectFilter, ctx services.Context) error {
 	if ctx.Data().Forward != model.ClientToServer {
-		panic("implement me")
+		return fmt.Errorf(" The error direction of the message is %T", model.ServerToClient)
 	}
 
 	context, ok := ctx.(*Context)

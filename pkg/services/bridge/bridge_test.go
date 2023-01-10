@@ -1740,7 +1740,7 @@ func TestConnectSetEnd(t *testing.T) {
 	assert.IsType(t, &connectSet{}, filter.handler)
 }
 
-func TestQueryState(t *testing.T) {
+func TestQueryParseHandler(t *testing.T) {
 	_, pgBackend := net.Pipe()
 	gbFront, gbBackend := net.Pipe()
 	filter := NewQueryFilter()
@@ -1804,9 +1804,10 @@ func TestQueryState(t *testing.T) {
 	stage, ok := v.(string)
 	assert.Equal(t, ok, true)
 	assert.Equal(t, stage, "QueryPrepareDone")
+	assert.IsType(t, &prepareHandler{}, filter.handler)
 }
 
-func TestQueryS2(t *testing.T) {
+func TestQueryPrepareHandler(t *testing.T) {
 	_, pgBackend := net.Pipe()
 	gbFront, gbBackend := net.Pipe()
 	filter := NewQueryFilter()
@@ -1818,11 +1819,11 @@ func TestQueryS2(t *testing.T) {
 		metadata:  make(map[string]interface{}),
 	}
 	ctx.SetMetaData("QueryStage", "QueryPrepareDone")
-	//ctx.SetMetaData("Condition", "insert")
-	ctx.SetMetaData("Condition", "select")
+	filter.SetHandler(&prepareHandler{})
+	ctx.SetMetaData("Condition", "insert")
+	//ctx.SetMetaData("Condition", "select")
 
 	go func() {
-		//defer func() { server_passed = true }()
 		buf := make([]byte, 1024)
 		c, err := gbBackend.Read(buf)
 		assert.Nil(t, err)
@@ -1896,11 +1897,13 @@ func TestQueryS2(t *testing.T) {
 	assert.Nil(t, err)
 	stage, ok := v.(string)
 	assert.Equal(t, ok, true)
-	//assert.Equal(t, stage, "QueryIDescribeDone")
-	assert.Equal(t, stage, "QuerySelectIDescribeDone")
+	assert.Equal(t, stage, "QueryIDescribeDone")
+	//assert.Equal(t, stage, "QuerySelectIDescribeDone")
+	//assert.IsType(t, &cidescribeSelectHandler{}, filter.handler)
+	assert.IsType(t, &cidescribeHandler{}, filter.handler)
 }
 
-func TestQueryS3(t *testing.T) {
+func TestQueryCIdescribeHandler(t *testing.T) {
 	_, pgBackend := net.Pipe()
 	gbFront, gbBackend := net.Pipe()
 	filter := NewQueryFilter()
@@ -1912,6 +1915,7 @@ func TestQueryS3(t *testing.T) {
 		metadata:  make(map[string]interface{}),
 	}
 	ctx.SetMetaData("QueryStage", "QueryIDescribeDone")
+	filter.SetHandler(&cidescribeHandler{})
 
 	go func() {
 		//defer func() { server_passed = true }()
@@ -1967,9 +1971,10 @@ func TestQueryS3(t *testing.T) {
 	stage, ok := v.(string)
 	assert.Equal(t, ok, true)
 	assert.Equal(t, stage, "QueryExecuteDone")
+	assert.IsType(t, &executeHandler{}, filter.handler)
 }
 
-func TestQueryS5(t *testing.T) {
+func TestQueryCIdescribeSelectHandler(t *testing.T) {
 	_, pgBackend := net.Pipe()
 	gbFront, gbBackend := net.Pipe()
 	filter := NewQueryFilter()
@@ -1981,6 +1986,7 @@ func TestQueryS5(t *testing.T) {
 		metadata:  make(map[string]interface{}),
 	}
 	ctx.SetMetaData("QueryStage", "QuerySelectIDescribeDone")
+	filter.SetHandler(&cidescribeSelectHandler{})
 
 	go func() {
 		//defer func() { server_passed = true }()
@@ -2037,9 +2043,10 @@ func TestQueryS5(t *testing.T) {
 	stage, ok := v.(string)
 	assert.Equal(t, ok, true)
 	assert.Equal(t, stage, "QueryOpen")
+	assert.IsType(t, &openHandler{}, filter.handler)
 }
 
-func TestQueryS7(t *testing.T) {
+func TestQueryExecuteHandler(t *testing.T) {
 	_, pgBackend := net.Pipe()
 	gbFront, gbBackend := net.Pipe()
 	filter := NewQueryFilter()
@@ -2051,6 +2058,7 @@ func TestQueryS7(t *testing.T) {
 		metadata:  make(map[string]interface{}),
 	}
 	ctx.SetMetaData("QueryStage", "QueryExecuteDone")
+	filter.SetHandler(&executeHandler{})
 
 	go func() {
 		//defer func() { server_passed = true }()
@@ -2098,9 +2106,10 @@ func TestQueryS7(t *testing.T) {
 	stage, ok := v.(string)
 	assert.Equal(t, ok, true)
 	assert.Equal(t, stage, "QueryRelease")
+	assert.IsType(t, &releaseHandler{}, filter.handler)
 }
 
-func TestQueryS9(t *testing.T) {
+func TestQueryReleaseHandler(t *testing.T) {
 	pgFront, pgBackend := net.Pipe()
 	gbFront, _ := net.Pipe()
 	filter := NewQueryFilter()
@@ -2112,6 +2121,7 @@ func TestQueryS9(t *testing.T) {
 		metadata:  make(map[string]interface{}),
 	}
 	ctx.SetMetaData("QueryStage", "QueryRelease")
+	filter.SetHandler(&releaseHandler{})
 
 	go func() {
 		parse, err := pgproto.NewFrontend(pgproto.NewChunkReader(pgFront), nil)
@@ -2153,7 +2163,7 @@ func TestQueryS9(t *testing.T) {
 	assert.Equal(t, ctx.state, SessionState("Query"))
 }
 
-func TestQueryS10(t *testing.T) {
+func TestQueryOpenHandler(t *testing.T) {
 	_, pgBackend := net.Pipe()
 	gbFront, gbBackend := net.Pipe()
 	filter := NewQueryFilter()
@@ -2165,6 +2175,7 @@ func TestQueryS10(t *testing.T) {
 		metadata:  make(map[string]interface{}),
 	}
 	ctx.SetMetaData("QueryStage", "QueryOpen")
+	filter.SetHandler(&openHandler{})
 
 	go func() {
 		//defer func() { server_passed = true }()
@@ -2199,9 +2210,10 @@ func TestQueryS10(t *testing.T) {
 	stage, ok := v.(string)
 	assert.Equal(t, ok, true)
 	assert.Equal(t, stage, "QueryDone")
+	assert.IsType(t, &nfetchdoneHandler{}, filter.handler)
 }
 
-func TestQueryS11(t *testing.T) {
+func TestQueryNFetchdoneHandler(t *testing.T) {
 	pgFront, pgBackend := net.Pipe()
 	gbFront, _ := net.Pipe()
 	filter := NewQueryFilter()
@@ -2213,6 +2225,7 @@ func TestQueryS11(t *testing.T) {
 		metadata:  make(map[string]interface{}),
 	}
 	ctx.SetMetaData("QueryStage", "QueryDone")
+	filter.SetHandler(&nfetchdoneHandler{})
 
 	go func() {
 		parse, err := pgproto.NewFrontend(pgproto.NewChunkReader(pgFront), nil)
