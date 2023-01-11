@@ -44,6 +44,9 @@ type (
 
 	nfetchdoneHandler struct {
 	}
+
+	prepareDescribeHandler struct {
+	}
 )
 
 func NewQueryFilter() *QueryFilter {
@@ -911,6 +914,123 @@ func (h *parseHandler) HandleHandle2(filter *QueryFilter, ctx services.Context) 
 	if err != nil {
 		return err
 	}
-	filter.SetHandler(&prepareHandler{}) //TODO 这个地方要改啊
+	filter.SetHandler(&prepareDescribeHandler{}) //TODO 这个地方要改啊
+	return nil
+}
+
+func (h *prepareDescribeHandler) Handle(filter *QueryFilter, ctx services.Context) error {
+	if ctx.Data().Forward != model.ServerToClient {
+		return fmt.Errorf(" The error direction of the message is %T", model.ClientToServer)
+	}
+
+	context, ok := ctx.(*Context)
+	if !ok {
+		return fmt.Errorf("unknown context type: %T", ctx)
+	}
+
+	buffer := bytes.NewReader(ctx.Data().Buffer)
+	//TODO: receive Sqli
+	msgs, err := model.UnpackSqliTransmission(buffer)
+	if err != nil {
+		return err
+	}
+	buf := make([]byte, 1024)
+
+	//describe
+	buf, err = msgs[0].Pack()
+	if err != nil {
+		return err
+	}
+	reader := bytes.NewReader(buf[2:])
+	describe := &model.SqliDescribe{}
+	err = describe.Unpack(reader)
+	if err != nil {
+		return err
+	}
+	_ = describe.StringTable
+	_ = describe.StatementType
+	err = ctx.SetMetaData("Idnumber", int16(describe.StatementID))
+	_ = describe.EstimatedCost
+	_ = describe.CountOfFields
+	_ = describe.StringTable
+	var fieldsname [1024]string
+	for i := 0; i < len(describe.Fields); i++ {
+		fieldsname[i] = describe.Fields[i].Name
+	}
+	err = ctx.SetMetaData("Fieldsname", fieldsname)
+
+	//done
+	buf, err = msgs[1].Pack()
+	if err != nil {
+		return err
+	}
+	reader = bytes.NewReader(buf[2:])
+	done := &model.SqliDone{}
+	err = done.Unpack(reader)
+	if err != nil {
+		return err
+	}
+	_ = done.Rows
+
+	//cost
+	buf, err = msgs[2].Pack()
+	if err != nil {
+		return err
+	}
+	reader = bytes.NewReader(buf[2:])
+	cost := &model.SqliCost{}
+	err = cost.Unpack(reader)
+	if err != nil {
+		return err
+	}
+	_ = cost.EstimatedRows
+
+	//eot
+	buf, err = msgs[3].Pack()
+
+	//TODO: send Sqli
+	id := &model.SqliID{
+		ID: 0,
+	}
+	cidescribe := &model.SqliCIdescribe{}
+	eot := &model.SqliEot{}
+	var transmission model.SqliTransmission
+	transmission = []model.SqliCommand{id, cidescribe, eot}
+	buf, err = transmission.Pack()
+	if err != nil {
+		return err
+	}
+	ctx.Data().Buffer = buf
+	_, err = context.backend.Write(ctx.Data().Buffer)
+	if err != nil {
+		return err
+	}
+
+	buff := (&pgproto3.ParseComplete{}).Encode(nil)
+	buff = (&pgproto3.ParameterDescription{
+		ParameterOIDs: []uint32{23},
+	}).Encode(buff)
+	buff = (&pgproto3.NoData{}).Encode(buff)
+	buff = (&pgproto3.ReadyForQuery{TxStatus: 'I'}).Encode(buff)
+	_, err = context.front.Write(buff)
+	if err != nil {
+		return err
+	}
+
+	v, err := context.MetaData("Condition")
+	if v.(string) == "select" || v.(string) == "SELECT" {
+		err = ctx.SetMetaData("QueryStage", "QuerySelectIDescribeDone")
+		filter.SetHandler(&cidescribeSelectHandler{})
+		if err != nil {
+			return err
+		}
+	} else {
+		err = ctx.SetMetaData("QueryStage", "QueryIDescribeDone")
+		filter.SetHandler(&cidescribeHandler{})
+		if err != nil {
+			return err
+		}
+	}
+
 	return nil
 }

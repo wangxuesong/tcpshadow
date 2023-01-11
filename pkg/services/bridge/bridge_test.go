@@ -2362,3 +2362,116 @@ func TestQueryParseHandler2(t *testing.T) {
 	assert.Equal(t, stage, "QueryPrepareDone")
 	assert.IsType(t, &prepareHandler{}, filter.handler)
 }
+
+func TestQueryPrepareHandler2(t *testing.T) {
+	pgFront, pgBackend := net.Pipe()
+	gbFront, gbBackend := net.Pipe()
+	filter := NewQueryFilter()
+	ctx := &Context{
+		sessionId: 0,
+		front:     pgBackend,
+		backend:   gbFront,
+		state:     QueryState,
+		metadata:  make(map[string]interface{}),
+	}
+	ctx.SetMetaData("QueryStage", "QueryPrepareDone")
+	filter.SetHandler(&prepareDescribeHandler{})
+	ctx.SetMetaData("Condition", "insert")
+	//ctx.SetMetaData("Condition", "select")
+
+	go func() {
+		buf := make([]byte, 1024)
+		c, err := gbBackend.Read(buf)
+		assert.Nil(t, err)
+		assert.True(t, c > 0)
+		buff := buf[:c]
+		readseeker := bytes.NewReader(buff)
+		msgs, err := model.UnpackSqliTransmission(readseeker)
+		assert.Nil(t, err)
+		assert.IsType(t, &model.SqliID{}, msgs[0])
+		assert.IsType(t, &model.SqliCIdescribe{}, msgs[1])
+		assert.IsType(t, &model.SqliEot{}, msgs[2])
+	}()
+	go func() {
+		parse, err := pgproto.NewFrontend(pgproto.NewChunkReader(pgFront), nil)
+		assert.Nil(t, err)
+
+		msg, err := parse.Receive()
+		assert.Nil(t, err)
+		assert.IsType(t, &pgproto.ParseComplete{}, msg)
+		msg, err = parse.Receive()
+		assert.Nil(t, err)
+		assert.IsType(t, &pgproto.ParameterDescription{}, msg)
+		msg, err = parse.Receive()
+		assert.Nil(t, err)
+		assert.IsType(t, &pgproto.NoData{}, msg)
+		msg, err = parse.Receive()
+		assert.Nil(t, err)
+		assert.IsType(t, &pgproto.ReadyForQuery{}, msg)
+	}()
+
+	describe := &model.SqliDescribe{
+		StatementType: 2,
+		StatementID:   0,
+		EstimatedCost: 0,
+		TupleSize:     8,
+		CountOfFields: 2,
+		StringTable:   8,
+		Fields: []model.SqliField{{
+			FieldIndex:              0,
+			ColumnStartPos:          0,
+			ColumnType:              2,
+			ColumnExtendedBuiltinId: 0,
+			OwnerName:               "",
+			ExtendedName:            "",
+			Reference:               0,
+			Alignment:               0,
+			SourceType:              0,
+			Length:                  4,
+			Name:                    "id",
+		}, {
+			FieldIndex:              3,
+			ColumnStartPos:          4,
+			ColumnType:              2,
+			ColumnExtendedBuiltinId: 0,
+			OwnerName:               "",
+			ExtendedName:            "",
+			Reference:               0,
+			Alignment:               0,
+			SourceType:              0,
+			Length:                  4,
+			Name:                    "code",
+		},
+		},
+	}
+	done := &model.SqliDone{
+		Warning:  0,
+		Rows:     0,
+		RowID:    0,
+		SerialID: 0,
+	}
+	cost := &model.SqliCost{
+		EstimatedRows: 1,
+		EstimatedIO:   2,
+	}
+	eot := &model.SqliEot{}
+	var transmission model.SqliTransmission
+	transmission = []model.SqliCommand{describe, done, cost, eot}
+	buffer, err := transmission.Pack()
+	assert.Nil(t, err)
+	//TODO: 将 buffer 改成正式的 sqli 数据
+	ctx.SetData(&model.Data{
+		Forward: model.ServerToClient,
+		Buffer:  buffer,
+	})
+	err = filter.Handle(ctx)
+	assert.Nil(t, err)
+	v, err := ctx.MetaData("QueryStage")
+	assert.Nil(t, err)
+	stage, ok := v.(string)
+	assert.Equal(t, ok, true)
+	assert.Equal(t, stage, "QueryIDescribeDone")
+	//assert.Equal(t, stage, "QuerySelectIDescribeDone")
+	//assert.IsType(t, &cidescribeSelectHandler{}, filter.handler)
+	assert.IsType(t, &cidescribeHandler{}, filter.handler)
+}
