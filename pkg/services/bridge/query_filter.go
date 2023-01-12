@@ -47,6 +47,9 @@ type (
 
 	prepareDescribeHandler struct {
 	}
+
+	cidesbatchHandler struct {
+	}
 )
 
 func NewQueryFilter() *QueryFilter {
@@ -428,6 +431,7 @@ func (h *releaseHandler) Handle(filter *QueryFilter, ctx services.Context) error
 	if err != nil {
 		return err
 	}
+	filter.SetHandler(&parseHandler{})
 
 	v, err := context.MetaData("QueryStage")
 	if err != nil {
@@ -721,6 +725,7 @@ func (h *nfetchdoneHandler) Handle(filter *QueryFilter, ctx services.Context) er
 	if err != nil {
 		return err
 	}
+	filter.SetHandler(&parseHandler{})
 
 	v, err := context.MetaData("QueryStage")
 	if err != nil {
@@ -988,24 +993,6 @@ func (h *prepareDescribeHandler) Handle(filter *QueryFilter, ctx services.Contex
 	//eot
 	buf, err = msgs[3].Pack()
 
-	//TODO: send Sqli
-	id := &model.SqliID{
-		ID: 0,
-	}
-	cidescribe := &model.SqliCIdescribe{}
-	eot := &model.SqliEot{}
-	var transmission model.SqliTransmission
-	transmission = []model.SqliCommand{id, cidescribe, eot}
-	buf, err = transmission.Pack()
-	if err != nil {
-		return err
-	}
-	ctx.Data().Buffer = buf
-	_, err = context.backend.Write(ctx.Data().Buffer)
-	if err != nil {
-		return err
-	}
-
 	buff := (&pgproto3.ParseComplete{}).Encode(nil)
 	buff = (&pgproto3.ParameterDescription{
 		ParameterOIDs: []uint32{23},
@@ -1026,10 +1013,176 @@ func (h *prepareDescribeHandler) Handle(filter *QueryFilter, ctx services.Contex
 		}
 	} else {
 		err = ctx.SetMetaData("QueryStage", "QueryIDescribeDone")
-		filter.SetHandler(&cidescribeHandler{})
+		filter.SetHandler(&cidesbatchHandler{})
 		if err != nil {
 			return err
 		}
+	}
+
+	return nil
+}
+
+func (h *cidesbatchHandler) Handle(filter *QueryFilter, ctx services.Context) error {
+	if ctx.Data().Forward != model.ClientToServer {
+		return fmt.Errorf(" The error direction of the message is %T", model.ClientToServer)
+	}
+
+	context, ok := ctx.(*Context)
+	if !ok {
+		return fmt.Errorf("unknown context type: %T", ctx)
+	}
+
+	parser := model.NewPgClientParser()
+	_, err := parser.Append(ctx.Data().Buffer)
+	if err != nil {
+		return err
+	}
+	msg, err := parser.ParseMessage()
+	if err != nil {
+		return err
+	}
+	buf := make([]byte, 1024)
+	groupcount := (len(msg) - 1) / 3
+
+	for j := 0; j < len(msg)-1; j++ {
+		for i := 0; i < groupcount; i++ {
+			//bind
+			buf = msg[j].Encode(nil)
+			pgbind := &pgproto3.Bind{}
+			err = pgbind.Decode(buf[5:])
+			if err != nil {
+				return err
+			}
+			_ = pgbind.DestinationPortal
+			_ = pgbind.PreparedStatement
+			_ = pgbind.ParameterFormatCodes
+			err = ctx.SetMetaData("Bindcondition", len(pgbind.ParameterFormatCodes))
+			binddata := pgbind.Parameters
+			a, err := context.MetaData("Bindtype")
+			var datebindint uint16
+			var datebindchar string
+			for c, t := range a.([]uint32) {
+				if t == 23 {
+					r := bytes.NewReader(binddata[c])
+					unpacker := binpacker.NewUnpacker(binary.BigEndian, r)
+					var pad uint16
+					unpacker.FetchUint16(&pad).FetchUint16(&datebindint)
+				} else {
+					r := bytes.NewReader(binddata[c])
+					unpacker := binpacker.NewUnpacker(binary.BigEndian, r)
+					unpacker.FetchString(uint64(len(binddata[c])), &datebindchar)
+				}
+			}
+			err = ctx.SetMetaData("Datebindint", datebindint)
+			if err != nil {
+				return err
+			}
+			err = ctx.SetMetaData("Datebindchar", datebindchar)
+			if err != nil {
+				return err
+			}
+			_ = pgbind.ResultFormatCodes
+			j++
+
+			//describe
+			buf = msg[j].Encode(nil)
+			describe := &pgproto3.Describe{}
+			err = describe.Decode(buf[5:])
+			if err != nil {
+				return err
+			}
+			_ = describe.ObjectType
+			_ = describe.Name
+			j++
+
+			//execute
+			buf = msg[j].Encode(nil)
+			pgexecute := &pgproto3.Execute{}
+			err = pgexecute.Decode(buf[5:])
+			if err != nil {
+				return err
+			}
+			_ = pgexecute.Portal
+			_ = pgexecute.MaxRows
+			j++
+		}
+	}
+
+	//TODO: send Sqli
+	//b, err := context.MetaData("Idnumber")
+	//id := &model.SqliID{
+	//	ID: b.(int16),
+	//}
+	//bind := &model.SqliBind{
+	//	Columns: []model.BindColumn{},
+	//}
+	//a, err := context.MetaData("Bindtype")
+	//if err != nil {
+	//	return err
+	//}
+	//for _, c := range a.([]uint32) {
+	//	var bindType int16
+	//	bindint := &model.BindColumnInt{}
+	//	bindchar := &model.BindColumnChar{}
+	//	t, err := context.MetaData("Datebindint")
+	//	p, err := context.MetaData("Datebindchar")
+	//	if err != nil {
+	//		return err
+	//	}
+	//	switch c {
+	//	case 23:
+	//		bindType = 2
+	//		bindint = &model.BindColumnInt{
+	//			Type:      bindType,
+	//			Indicator: 0,
+	//			Precision: 2560,
+	//			Data:      t.(uint16),
+	//		}
+	//		bind.Columns = []model.BindColumn{*bindint}
+	//	case 1043:
+	//		bindType = 0
+	//		bindchar = &model.BindColumnChar{
+	//			Type:      bindType,
+	//			Indicator: 0,
+	//			Precision: 0,
+	//			Data:      p.(string),
+	//		}
+	//		bind.Columns = []model.BindColumn{*bindchar}
+	//	}
+	//}
+	//execute := &model.SqliExecute{}
+	//eot := &model.SqliEot{}
+	//var beloop []model.SqliCommand
+	//for i := 0; i < groupcount; i++ {
+	//	beloop = append(beloop, bind, execute)
+	//}
+	//var transmission model.SqliTransmission
+	//transmission = []model.SqliCommand{id}
+	//for _, v := range beloop {
+	//	transmission = append(transmission, v)
+	//}
+	//transmission = append(transmission, eot)
+	//buf, err = transmission.Pack()
+	//if err != nil {
+	//	return err
+	//}
+	id := &model.SqliID{
+		ID: 0,
+	}
+	cidescribe := &model.SqliCIdescribe{}
+	eot := &model.SqliEot{}
+	var transmission model.SqliTransmission
+	transmission = []model.SqliCommand{id, cidescribe, eot}
+	buff, err := transmission.Pack()
+	ctx.Data().Buffer = buff
+	_, err = context.backend.Write(ctx.Data().Buffer)
+	if err != nil {
+		return err
+	}
+	err = ctx.SetMetaData("QueryStage", "QueryExecuteDone")
+	filter.SetHandler(&executeHandler{})
+	if err != nil {
+		return err
 	}
 
 	return nil

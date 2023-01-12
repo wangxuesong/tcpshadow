@@ -2365,7 +2365,7 @@ func TestQueryParseHandler2(t *testing.T) {
 
 func TestQueryPrepareHandler2(t *testing.T) {
 	pgFront, pgBackend := net.Pipe()
-	gbFront, gbBackend := net.Pipe()
+	gbFront, _ := net.Pipe()
 	filter := NewQueryFilter()
 	ctx := &Context{
 		sessionId: 0,
@@ -2379,19 +2379,6 @@ func TestQueryPrepareHandler2(t *testing.T) {
 	ctx.SetMetaData("Condition", "insert")
 	//ctx.SetMetaData("Condition", "select")
 
-	go func() {
-		buf := make([]byte, 1024)
-		c, err := gbBackend.Read(buf)
-		assert.Nil(t, err)
-		assert.True(t, c > 0)
-		buff := buf[:c]
-		readseeker := bytes.NewReader(buff)
-		msgs, err := model.UnpackSqliTransmission(readseeker)
-		assert.Nil(t, err)
-		assert.IsType(t, &model.SqliID{}, msgs[0])
-		assert.IsType(t, &model.SqliCIdescribe{}, msgs[1])
-		assert.IsType(t, &model.SqliEot{}, msgs[2])
-	}()
 	go func() {
 		parse, err := pgproto.NewFrontend(pgproto.NewChunkReader(pgFront), nil)
 		assert.Nil(t, err)
@@ -2473,5 +2460,82 @@ func TestQueryPrepareHandler2(t *testing.T) {
 	assert.Equal(t, stage, "QueryIDescribeDone")
 	//assert.Equal(t, stage, "QuerySelectIDescribeDone")
 	//assert.IsType(t, &cidescribeSelectHandler{}, filter.handler)
-	assert.IsType(t, &cidescribeHandler{}, filter.handler)
+	assert.IsType(t, &cidesbatchHandler{}, filter.handler)
+}
+
+func TestQueryCIdesbatchHandler(t *testing.T) {
+	_, pgBackend := net.Pipe()
+	gbFront, gbBackend := net.Pipe()
+	filter := NewQueryFilter()
+	ctx := &Context{
+		sessionId: 0,
+		front:     pgBackend,
+		backend:   gbFront,
+		state:     QueryState,
+		metadata:  make(map[string]interface{}),
+	}
+	ctx.SetMetaData("QueryStage", "QueryIDescribeDone")
+	ctx.SetMetaData("Bindcondition", 0)
+	ctx.SetMetaData("Idnumber", int16(0))
+	ctx.SetMetaData("Bindtype", []uint32{23})
+	filter.SetHandler(&cidesbatchHandler{})
+
+	go func() {
+		//defer func() { server_passed = true }()
+		buf := make([]byte, 1024)
+		c, err := gbBackend.Read(buf)
+		assert.Nil(t, err)
+		assert.True(t, c > 0)
+		buff := buf[:c]
+		readseeker := bytes.NewReader(buff)
+		msgs, err := model.UnpackSqliTransmission(readseeker)
+		assert.Nil(t, err)
+		assert.IsType(t, &model.SqliID{}, msgs[0])
+		assert.IsType(t, &model.SqliCIdescribe{}, msgs[1])
+		assert.IsType(t, &model.SqliEot{}, msgs[2])
+	}()
+
+	buffer := (&pgproto.Bind{
+		DestinationPortal:    "",
+		PreparedStatement:    "",
+		ParameterFormatCodes: []int16{1},
+		Parameters:           [][]byte{{2}},
+		ResultFormatCodes:    []int16{0},
+	}).Encode(nil)
+	buffer = (&pgproto.Describe{
+		ObjectType: 'P',
+		Name:       "",
+	}).Encode(buffer)
+	buffer = (&pgproto.Execute{
+		Portal:  "",
+		MaxRows: 1,
+	}).Encode(buffer)
+	buffer = (&pgproto.Bind{
+		DestinationPortal:    "",
+		PreparedStatement:    "",
+		ParameterFormatCodes: []int16{1},
+		Parameters:           [][]byte{{2}},
+		ResultFormatCodes:    []int16{0},
+	}).Encode(buffer)
+	buffer = (&pgproto.Describe{
+		ObjectType: 'P',
+		Name:       "",
+	}).Encode(buffer)
+	buffer = (&pgproto.Execute{
+		Portal:  "",
+		MaxRows: 1,
+	}).Encode(buffer)
+	buffer = (&pgproto.Sync{}).Encode(buffer)
+	ctx.SetData(&model.Data{
+		Forward: model.ClientToServer,
+		Buffer:  buffer,
+	})
+	err := filter.Handle(ctx)
+	assert.Nil(t, err)
+	v, err := ctx.MetaData("QueryStage")
+	assert.Nil(t, err)
+	stage, ok := v.(string)
+	assert.Equal(t, ok, true)
+	assert.Equal(t, stage, "QueryExecuteDone")
+	assert.IsType(t, &executeHandler{}, filter.handler)
 }
