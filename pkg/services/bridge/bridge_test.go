@@ -2375,8 +2375,6 @@ func TestQueryPrepareHandler2(t *testing.T) {
 	}
 	ctx.SetMetaData("QueryStage", "QueryPrepareDone")
 	filter.SetHandler(&prepareDescribeHandler{})
-	ctx.SetMetaData("Condition", "insert")
-	//ctx.SetMetaData("Condition", "select")
 
 	go func() {
 		parse, err := pgproto.NewFrontend(pgproto.NewChunkReader(pgFront), nil)
@@ -2456,9 +2454,7 @@ func TestQueryPrepareHandler2(t *testing.T) {
 	assert.Nil(t, err)
 	stage, ok := v.(string)
 	assert.Equal(t, ok, true)
-	assert.Equal(t, stage, "QueryIDescribeDone")
-	//assert.Equal(t, stage, "QuerySelectIDescribeDone")
-	//assert.IsType(t, &cidescribeSelectHandler{}, filter.handler)
+	assert.Equal(t, stage, "QueryPDescribeDone")
 	assert.IsType(t, &cidesbatchHandler{}, filter.handler)
 }
 
@@ -2477,10 +2473,11 @@ func TestQueryCIdesbatchHandler(t *testing.T) {
 	ctx.SetMetaData("Bindcondition", 0)
 	ctx.SetMetaData("Idnumber", int16(0))
 	ctx.SetMetaData("Bindtype", []uint32{23})
+	ctx.SetMetaData("Condition", "insert")
+	//ctx.SetMetaData("Condition", "select")
 	filter.SetHandler(&cidesbatchHandler{})
 
 	go func() {
-		//defer func() { server_passed = true }()
 		buf := make([]byte, 1024)
 		c, err := gbBackend.Read(buf)
 		assert.Nil(t, err)
@@ -2535,6 +2532,8 @@ func TestQueryCIdesbatchHandler(t *testing.T) {
 	assert.Nil(t, err)
 	stage, ok := v.(string)
 	assert.Equal(t, ok, true)
-	assert.Equal(t, stage, "QueryExecuteDone")
-	assert.IsType(t, &executeHandler{}, filter.handler)
+	assert.Equal(t, stage, "QueryExecute")
+	assert.IsType(t, &cidescribeHandler{}, filter.handler)
+	//assert.Equal(t, stage, "QueryOpen")
+	//assert.IsType(t, &cidescribeSelectHandler{}, filter.handler)
 }

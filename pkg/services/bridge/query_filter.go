@@ -1004,20 +1004,8 @@ func (h *prepareDescribeHandler) Handle(filter *QueryFilter, ctx services.Contex
 		return err
 	}
 
-	v, err := context.MetaData("Condition")
-	if v.(string) == "select" || v.(string) == "SELECT" {
-		err = ctx.SetMetaData("QueryStage", "QuerySelectIDescribeDone")
-		filter.SetHandler(&cidescribeSelectHandler{})
-		if err != nil {
-			return err
-		}
-	} else {
-		err = ctx.SetMetaData("QueryStage", "QueryIDescribeDone")
-		filter.SetHandler(&cidesbatchHandler{})
-		if err != nil {
-			return err
-		}
-	}
+	err = ctx.SetMetaData("QueryStage", "QueryPDescribeDone")
+	filter.SetHandler(&cidesbatchHandler{})
 
 	return nil
 }
@@ -1183,6 +1171,21 @@ func (h *cidesbatchHandler) Handle(filter *QueryFilter, ctx services.Context) er
 	filter.SetHandler(&executeHandler{})
 	if err != nil {
 		return err
+	}
+
+	v, err := context.MetaData("Condition")
+	if v.(string) == "select" || v.(string) == "SELECT" {
+		err = ctx.SetMetaData("QueryStage", "QueryOpen")
+		filter.SetHandler(&cidescribeSelectHandler{})
+		if err != nil {
+			return err
+		}
+	} else {
+		err = ctx.SetMetaData("QueryStage", "QueryExecute")
+		filter.SetHandler(&cidescribeHandler{})
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil
