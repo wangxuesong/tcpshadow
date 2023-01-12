@@ -218,6 +218,7 @@ func (h *cidescribeHandler) Handle(filter *QueryFilter, ctx services.Context) er
 		return err
 	}
 	buf := make([]byte, 1024)
+	groupcount, err := context.MetaData("Groupcount")
 
 	//idescribe
 	buf, err = msgs[0].Pack()
@@ -283,9 +284,18 @@ func (h *cidescribeHandler) Handle(filter *QueryFilter, ctx services.Context) er
 	}
 	execute := &model.SqliExecute{}
 	eot := &model.SqliEot{}
+	var beloop []model.SqliCommand
+	for i := 0; i < groupcount.(int); i++ {
+		beloop = append(beloop, bind, execute)
+	}
+
 	var transmission model.SqliTransmission
 	if v != 0 {
-		transmission = []model.SqliCommand{id, bind, execute, eot}
+		transmission = []model.SqliCommand{id}
+		for _, v := range beloop {
+			transmission = append(transmission, v)
+		}
+		transmission = append(transmission, eot)
 	} else {
 		transmission = []model.SqliCommand{id, execute, eot}
 	}
@@ -855,6 +865,7 @@ func (h *parseHandler) HandleHandle1(filter *QueryFilter, ctx services.Context) 
 		return err
 	}
 	filter.SetHandler(&prepareHandler{})
+	err = ctx.SetMetaData("Groupcount", 1)
 	return nil
 }
 
@@ -1031,6 +1042,10 @@ func (h *cidesbatchHandler) Handle(filter *QueryFilter, ctx services.Context) er
 	}
 	buf := make([]byte, 1024)
 	groupcount := (len(msg) - 1) / 3
+	err = ctx.SetMetaData("Groupcount", groupcount)
+	if err != nil {
+		return err
+	}
 
 	for j := 0; j < len(msg)-1; j++ {
 		for i := 0; i < groupcount; i++ {
@@ -1096,64 +1111,6 @@ func (h *cidesbatchHandler) Handle(filter *QueryFilter, ctx services.Context) er
 		}
 	}
 
-	//TODO: send Sqli
-	//b, err := context.MetaData("Idnumber")
-	//id := &model.SqliID{
-	//	ID: b.(int16),
-	//}
-	//bind := &model.SqliBind{
-	//	Columns: []model.BindColumn{},
-	//}
-	//a, err := context.MetaData("Bindtype")
-	//if err != nil {
-	//	return err
-	//}
-	//for _, c := range a.([]uint32) {
-	//	var bindType int16
-	//	bindint := &model.BindColumnInt{}
-	//	bindchar := &model.BindColumnChar{}
-	//	t, err := context.MetaData("Datebindint")
-	//	p, err := context.MetaData("Datebindchar")
-	//	if err != nil {
-	//		return err
-	//	}
-	//	switch c {
-	//	case 23:
-	//		bindType = 2
-	//		bindint = &model.BindColumnInt{
-	//			Type:      bindType,
-	//			Indicator: 0,
-	//			Precision: 2560,
-	//			Data:      t.(uint16),
-	//		}
-	//		bind.Columns = []model.BindColumn{*bindint}
-	//	case 1043:
-	//		bindType = 0
-	//		bindchar = &model.BindColumnChar{
-	//			Type:      bindType,
-	//			Indicator: 0,
-	//			Precision: 0,
-	//			Data:      p.(string),
-	//		}
-	//		bind.Columns = []model.BindColumn{*bindchar}
-	//	}
-	//}
-	//execute := &model.SqliExecute{}
-	//eot := &model.SqliEot{}
-	//var beloop []model.SqliCommand
-	//for i := 0; i < groupcount; i++ {
-	//	beloop = append(beloop, bind, execute)
-	//}
-	//var transmission model.SqliTransmission
-	//transmission = []model.SqliCommand{id}
-	//for _, v := range beloop {
-	//	transmission = append(transmission, v)
-	//}
-	//transmission = append(transmission, eot)
-	//buf, err = transmission.Pack()
-	//if err != nil {
-	//	return err
-	//}
 	id := &model.SqliID{
 		ID: 0,
 	}
