@@ -2321,7 +2321,6 @@ func TestQueryParseHandler2(t *testing.T) {
 	sql := "insert into t values (1)"
 
 	go func() {
-		//defer func() { server_passed = true }()
 		buf := make([]byte, 1024)
 		c, err := gbBackend.Read(buf)
 		assert.Nil(t, err)
@@ -2360,7 +2359,7 @@ func TestQueryParseHandler2(t *testing.T) {
 	stage, ok := v.(string)
 	assert.Equal(t, ok, true)
 	assert.Equal(t, stage, "QueryPrepareDone")
-	assert.IsType(t, &prepareHandler{}, filter.handler)
+	assert.IsType(t, &prepareDescribeHandler{}, filter.handler)
 }
 
 func TestQueryPrepareHandler2(t *testing.T) {
