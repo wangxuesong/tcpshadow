@@ -288,6 +288,299 @@ func TestConnectFilter_Handle(t *testing.T) {
 	assert.Equal(t, QueryState, ctx.state)
 }
 
+func TestQueryFilter_Handle_INSERT_BatchBind(t *testing.T) {
+	pgFront, pgBackend := net.Pipe()
+	gbFront, gbBackend := net.Pipe()
+	filter := NewQueryFilter()
+	ctx := &Context{
+		sessionId: 0,
+		front:     pgBackend,
+		backend:   gbFront,
+		state:     QueryState,
+		metadata:  make(map[string]interface{}),
+	}
+	sql := "insert into t values ($1)"
+	buffer := (&pgproto.Parse{
+		Name:          "",
+		Query:         sql,
+		ParameterOIDs: []uint32{23},
+	}).Encode(nil)
+	buffer = (&pgproto.Describe{
+		ObjectType: 'S',
+		Name:       "",
+	}).Encode(buffer)
+	buffer = (&pgproto.Sync{}).Encode(buffer)
+	ctx.SetData(&model.Data{
+		Forward: model.ClientToServer,
+		Buffer:  buffer,
+	})
+
+	// 8s Server
+	go func() {
+		//defer func() { server_passed = true }()
+		buf := make([]byte, 1024)
+		c, err := gbBackend.Read(buf)
+		assert.Nil(t, err)
+		assert.True(t, c > 0)
+		buff := buf[:c]
+		readseeker := bytes.NewReader(buff)
+		msgs, err := model.UnpackSqliTransmission(readseeker)
+		assert.Nil(t, err)
+		assert.Equal(t, &model.SqliPrepare{
+			QMarks: uint16(strings.Count(sql, "$")),
+			Sql:    strings.ReplaceAll(sql, "$1", "?"),
+		}, msgs[0])
+		assert.IsType(t, &model.SqliNDescribe{}, msgs[1])
+		assert.IsType(t, &model.SqliWantDone{}, msgs[2])
+		assert.IsType(t, &model.SqliEot{}, msgs[3])
+
+		c, err = gbBackend.Read(buf)
+		assert.Nil(t, err)
+		assert.True(t, c > 0)
+		buff = buf[:c]
+		readseeker = bytes.NewReader(buff)
+		msgs, err = model.UnpackSqliTransmission(readseeker)
+		assert.Nil(t, err)
+		assert.IsType(t, &model.SqliID{}, msgs[0])
+		assert.IsType(t, &model.SqliCIdescribe{}, msgs[1])
+		assert.IsType(t, &model.SqliEot{}, msgs[2])
+
+		c, err = gbBackend.Read(buf)
+		assert.Nil(t, err)
+		assert.True(t, c > 0)
+		buff = buf[:c]
+		readseeker = bytes.NewReader(buff)
+		msgs, err = model.UnpackSqliTransmission(readseeker)
+		assert.Nil(t, err)
+		assert.IsType(t, &model.SqliID{}, msgs[0])
+		assert.IsType(t, &model.SqliBind{}, msgs[1])
+		assert.IsType(t, &model.SqliExecute{}, msgs[2])
+		assert.IsType(t, &model.SqliBind{}, msgs[3])
+		assert.IsType(t, &model.SqliExecute{}, msgs[4])
+		assert.IsType(t, &model.SqliEot{}, msgs[5])
+
+		c, err = gbBackend.Read(buf)
+		assert.Nil(t, err)
+		assert.True(t, c > 0)
+		buff = buf[:c]
+		readseeker = bytes.NewReader(buff)
+		msgs, err = model.UnpackSqliTransmission(readseeker)
+		assert.Nil(t, err)
+		assert.IsType(t, &model.SqliID{}, msgs[0])
+		assert.IsType(t, &model.SqliRelease{}, msgs[1])
+		assert.IsType(t, &model.SqliEot{}, msgs[2])
+	}()
+
+	go func() {
+		parse, err := pgproto.NewFrontend(pgproto.NewChunkReader(pgFront), nil)
+		assert.Nil(t, err)
+		msg, err := parse.Receive()
+		assert.Nil(t, err)
+		assert.IsType(t, &pgproto.ParseComplete{}, msg)
+		msg, err = parse.Receive()
+		assert.Nil(t, err)
+		assert.IsType(t, &pgproto.ParameterDescription{}, msg)
+		msg, err = parse.Receive()
+		assert.Nil(t, err)
+		assert.IsType(t, &pgproto.NoData{}, msg)
+		msg, err = parse.Receive()
+		assert.Nil(t, err)
+		assert.IsType(t, &pgproto.ReadyForQuery{}, msg)
+
+		msg, err = parse.Receive()
+		assert.Nil(t, err)
+		assert.IsType(t, &pgproto.BindComplete{}, msg)
+		msg, err = parse.Receive()
+		assert.Nil(t, err)
+		assert.IsType(t, &pgproto.NoData{}, msg)
+		msg, err = parse.Receive()
+		assert.Nil(t, err)
+		assert.IsType(t, &pgproto.CommandComplete{}, msg)
+		msg, err = parse.Receive()
+		assert.Nil(t, err)
+		assert.IsType(t, &pgproto.BindComplete{}, msg)
+		msg, err = parse.Receive()
+		assert.Nil(t, err)
+		assert.IsType(t, &pgproto.NoData{}, msg)
+		msg, err = parse.Receive()
+		assert.Nil(t, err)
+		assert.IsType(t, &pgproto.CommandComplete{}, msg)
+		msg, err = parse.Receive()
+		assert.Nil(t, err)
+		assert.IsType(t, &pgproto.ReadyForQuery{}, msg)
+	}()
+
+	func() {
+		err := filter.Handle(ctx)
+		assert.Nil(t, err)
+
+		// gbase response
+		describe := &model.SqliDescribe{
+			StatementType: 2,
+			StatementID:   0,
+			EstimatedCost: 0,
+			TupleSize:     8,
+			CountOfFields: 2,
+			StringTable:   8,
+			Fields: []model.SqliField{{
+				FieldIndex:              0,
+				ColumnStartPos:          0,
+				ColumnType:              2,
+				ColumnExtendedBuiltinId: 0,
+				OwnerName:               "",
+				ExtendedName:            "",
+				Reference:               0,
+				Alignment:               0,
+				SourceType:              0,
+				Length:                  4,
+				Name:                    "id",
+			}, {
+				FieldIndex:              3,
+				ColumnStartPos:          4,
+				ColumnType:              2,
+				ColumnExtendedBuiltinId: 0,
+				OwnerName:               "",
+				ExtendedName:            "",
+				Reference:               0,
+				Alignment:               0,
+				SourceType:              0,
+				Length:                  4,
+				Name:                    "code",
+			},
+			},
+		}
+		done := &model.SqliDone{
+			Warning:  0,
+			Rows:     0,
+			RowID:    0,
+			SerialID: 0,
+		}
+		cost := &model.SqliCost{
+			EstimatedRows: 1,
+			EstimatedIO:   2,
+		}
+		eot := &model.SqliEot{}
+		var transmission model.SqliTransmission
+		transmission = []model.SqliCommand{describe, done, cost, eot}
+		buffer, err := transmission.Pack()
+		assert.Nil(t, err)
+		//TODO: 将 buffer 改成正式的 sqli 数据
+		ctx.SetData(&model.Data{
+			Forward: model.ServerToClient,
+			Buffer:  buffer,
+		})
+		err = filter.Handle(ctx)
+		assert.Nil(t, err)
+
+		buffer = (&pgproto.Bind{
+			DestinationPortal:    "",
+			PreparedStatement:    "",
+			ParameterFormatCodes: []int16{1},
+			Parameters:           [][]byte{{2}},
+			ResultFormatCodes:    []int16{0},
+		}).Encode(nil)
+		buffer = (&pgproto.Describe{
+			ObjectType: 'P',
+			Name:       "",
+		}).Encode(buffer)
+		buffer = (&pgproto.Execute{
+			Portal:  "S_1",
+			MaxRows: 0,
+		}).Encode(buffer)
+		buffer = (&pgproto.Bind{
+			DestinationPortal:    "",
+			PreparedStatement:    "",
+			ParameterFormatCodes: []int16{1},
+			Parameters:           [][]byte{{2}},
+			ResultFormatCodes:    []int16{0},
+		}).Encode(buffer)
+		buffer = (&pgproto.Describe{
+			ObjectType: 'P',
+			Name:       "",
+		}).Encode(buffer)
+		buffer = (&pgproto.Execute{
+			Portal:  "S_1",
+			MaxRows: 0,
+		}).Encode(buffer)
+		buffer = (&pgproto.Sync{}).Encode(buffer)
+		ctx.SetData(&model.Data{
+			Forward: model.ClientToServer,
+			Buffer:  buffer,
+		})
+		err = filter.Handle(ctx)
+		assert.Nil(t, err)
+
+		idescribe := &model.SqliIdescribe{
+			Inputfields: 2,
+			Fields: []model.Sqlifields{{
+				Type:                 2,
+				ExtendID:             0,
+				OwnerNameLength:      0,
+				ExtendTypeNameLength: 0,
+				PassByReferenceFlag:  0,
+				Alignment:            0,
+				SourceType:           0,
+				Length:               4,
+			}, {
+				Type:                 2,
+				ExtendID:             0,
+				OwnerNameLength:      0,
+				ExtendTypeNameLength: 0,
+				PassByReferenceFlag:  0,
+				Alignment:            0,
+				SourceType:           0,
+				Length:               4,
+			}},
+		}
+		transmission = []model.SqliCommand{idescribe, eot}
+		buffer, err = transmission.Pack()
+		assert.Nil(t, err)
+		//TODO: 将 buffer 改成正式的 sqli 数据
+		ctx.SetData(&model.Data{
+			Forward: model.ServerToClient,
+			Buffer:  buffer,
+		})
+		err = filter.Handle(ctx)
+		assert.Nil(t, err)
+
+		insertdone := &model.SqliInsertDone{
+			Serial8:   1,
+			BigSerial: 2,
+		}
+		done = &model.SqliDone{
+			Warning:  0,
+			Rows:     0,
+			RowID:    0,
+			SerialID: 0,
+		}
+		cost = &model.SqliCost{
+			EstimatedRows: 1,
+			EstimatedIO:   2,
+		}
+		transmission = []model.SqliCommand{insertdone, done, cost, insertdone, done, cost, eot}
+		buffer, err = transmission.Pack()
+		assert.Nil(t, err)
+		//TODO: 将 buffer 改成正式的 sqli 数据
+		ctx.SetData(&model.Data{
+			Forward: model.ServerToClient,
+			Buffer:  buffer,
+		})
+		err = filter.Handle(ctx)
+		assert.Nil(t, err)
+
+		transmission = []model.SqliCommand{eot}
+		buffer, err = transmission.Pack()
+		assert.Nil(t, err)
+		//TODO: 将 buffer 改成正式的 sqli 数据
+		ctx.SetData(&model.Data{
+			Forward: model.ServerToClient,
+			Buffer:  buffer,
+		})
+		err = filter.Handle(ctx)
+		assert.Nil(t, err)
+	}()
+}
+
 func TestQueryFilter_Handle_INSERT_Bind(t *testing.T) {
 	pgFront, pgBackend := net.Pipe()
 	gbFront, gbBackend := net.Pipe()
@@ -382,6 +675,26 @@ func TestQueryFilter_Handle_INSERT_Bind(t *testing.T) {
 	}()
 
 	go func() {
+		parse, err := pgproto.NewFrontend(pgproto.NewChunkReader(pgFront), nil)
+		assert.Nil(t, err)
+		msg, err := parse.Receive()
+		assert.Nil(t, err)
+		assert.IsType(t, &pgproto.ParseComplete{}, msg)
+		msg, err = parse.Receive()
+		assert.Nil(t, err)
+		assert.IsType(t, &pgproto.BindComplete{}, msg)
+		msg, err = parse.Receive()
+		assert.Nil(t, err)
+		assert.IsType(t, &pgproto.NoData{}, msg)
+		msg, err = parse.Receive()
+		assert.Nil(t, err)
+		assert.IsType(t, &pgproto.CommandComplete{}, msg)
+		msg, err = parse.Receive()
+		assert.Nil(t, err)
+		assert.IsType(t, &pgproto.ReadyForQuery{}, msg)
+	}()
+
+	func() {
 		//defer func() { server_passed = true }()
 		err := filter.Handle(ctx)
 		assert.Nil(t, err)
@@ -513,28 +826,6 @@ func TestQueryFilter_Handle_INSERT_Bind(t *testing.T) {
 		err = filter.Handle(ctx)
 		assert.Nil(t, err)
 	}()
-
-	{
-		parse, err := pgproto.NewFrontend(pgproto.NewChunkReader(pgFront), nil)
-		assert.Nil(t, err)
-
-		msg, err := parse.Receive()
-		assert.Nil(t, err)
-		assert.IsType(t, &pgproto.ParseComplete{}, msg)
-		msg, err = parse.Receive()
-		assert.Nil(t, err)
-		assert.IsType(t, &pgproto.BindComplete{}, msg)
-		msg, err = parse.Receive()
-		assert.Nil(t, err)
-		assert.IsType(t, &pgproto.NoData{}, msg)
-		msg, err = parse.Receive()
-		assert.Nil(t, err)
-		assert.IsType(t, &pgproto.CommandComplete{}, msg)
-		msg, err = parse.Receive()
-		assert.Nil(t, err)
-		assert.IsType(t, &pgproto.ReadyForQuery{}, msg)
-	}
-	//assert.True(t, server_passed)
 }
 
 func TestQueryFilter_Handle_INSERT(t *testing.T) {
@@ -627,10 +918,30 @@ func TestQueryFilter_Handle_INSERT(t *testing.T) {
 		assert.IsType(t, &model.SqliID{}, msgs[0])
 		assert.IsType(t, &model.SqliRelease{}, msgs[1])
 		assert.IsType(t, &model.SqliEot{}, msgs[2])
-
 	}()
 
 	go func() {
+		parse, err := pgproto.NewFrontend(pgproto.NewChunkReader(pgFront), nil)
+		assert.Nil(t, err)
+
+		msg, err := parse.Receive()
+		assert.Nil(t, err)
+		assert.IsType(t, &pgproto.ParseComplete{}, msg)
+		msg, err = parse.Receive()
+		assert.Nil(t, err)
+		assert.IsType(t, &pgproto.BindComplete{}, msg)
+		msg, err = parse.Receive()
+		assert.Nil(t, err)
+		assert.IsType(t, &pgproto.NoData{}, msg)
+		msg, err = parse.Receive()
+		assert.Nil(t, err)
+		assert.IsType(t, &pgproto.CommandComplete{}, msg)
+		msg, err = parse.Receive()
+		assert.Nil(t, err)
+		assert.IsType(t, &pgproto.ReadyForQuery{}, msg)
+	}()
+
+	func() {
 		//defer func() { server_passed = true }()
 		err := filter.Handle(ctx)
 		assert.Nil(t, err)
@@ -762,28 +1073,6 @@ func TestQueryFilter_Handle_INSERT(t *testing.T) {
 		err = filter.Handle(ctx)
 		assert.Nil(t, err)
 	}()
-
-	{
-		parse, err := pgproto.NewFrontend(pgproto.NewChunkReader(pgFront), nil)
-		assert.Nil(t, err)
-
-		msg, err := parse.Receive()
-		assert.Nil(t, err)
-		assert.IsType(t, &pgproto.ParseComplete{}, msg)
-		msg, err = parse.Receive()
-		assert.Nil(t, err)
-		assert.IsType(t, &pgproto.BindComplete{}, msg)
-		msg, err = parse.Receive()
-		assert.Nil(t, err)
-		assert.IsType(t, &pgproto.NoData{}, msg)
-		msg, err = parse.Receive()
-		assert.Nil(t, err)
-		assert.IsType(t, &pgproto.CommandComplete{}, msg)
-		msg, err = parse.Receive()
-		assert.Nil(t, err)
-		assert.IsType(t, &pgproto.ReadyForQuery{}, msg)
-	}
-	//assert.True(t, server_passed)
 }
 
 func TestQueryFilter_Handle_SELECT_Bind(t *testing.T) {
@@ -824,7 +1113,6 @@ func TestQueryFilter_Handle_SELECT_Bind(t *testing.T) {
 		Buffer:  buffer,
 	})
 
-	//server_passed := false
 	// 8s Server
 	go func() {
 		//defer func() { server_passed = true }()
@@ -883,6 +1171,32 @@ func TestQueryFilter_Handle_SELECT_Bind(t *testing.T) {
 	}()
 
 	go func() {
+		parse, err := pgproto.NewFrontend(pgproto.NewChunkReader(pgFront), nil)
+		assert.Nil(t, err)
+
+		msg, err := parse.Receive()
+		assert.Nil(t, err)
+		assert.IsType(t, &pgproto.ParseComplete{}, msg)
+		msg, err = parse.Receive()
+		assert.Nil(t, err)
+		assert.IsType(t, &pgproto.BindComplete{}, msg)
+		msg, err = parse.Receive()
+		assert.Nil(t, err)
+		assert.IsType(t, &pgproto.RowDescription{}, msg)
+		for i := 0; i < 3; i++ {
+			msg, err = parse.Receive()
+			assert.Nil(t, err)
+			assert.IsType(t, &pgproto.DataRow{}, msg)
+		}
+		msg, err = parse.Receive()
+		assert.Nil(t, err)
+		assert.IsType(t, &pgproto.CommandComplete{}, msg)
+		msg, err = parse.Receive()
+		assert.Nil(t, err)
+		assert.IsType(t, &pgproto.ReadyForQuery{}, msg)
+	}()
+
+	func() {
 		//defer func() { server_passed = true }()
 		err := filter.Handle(ctx)
 		assert.Nil(t, err)
@@ -1016,33 +1330,6 @@ func TestQueryFilter_Handle_SELECT_Bind(t *testing.T) {
 		err = filter.Handle(ctx)
 		assert.Nil(t, err)
 	}()
-
-	{
-		parse, err := pgproto.NewFrontend(pgproto.NewChunkReader(pgFront), nil)
-		assert.Nil(t, err)
-
-		msg, err := parse.Receive()
-		assert.Nil(t, err)
-		assert.IsType(t, &pgproto.ParseComplete{}, msg)
-		msg, err = parse.Receive()
-		assert.Nil(t, err)
-		assert.IsType(t, &pgproto.BindComplete{}, msg)
-		msg, err = parse.Receive()
-		assert.Nil(t, err)
-		assert.IsType(t, &pgproto.RowDescription{}, msg)
-		for i := 0; i < 3; i++ {
-			msg, err = parse.Receive()
-			assert.Nil(t, err)
-			assert.IsType(t, &pgproto.DataRow{}, msg)
-		}
-		msg, err = parse.Receive()
-		assert.Nil(t, err)
-		assert.IsType(t, &pgproto.CommandComplete{}, msg)
-		msg, err = parse.Receive()
-		assert.Nil(t, err)
-		assert.IsType(t, &pgproto.ReadyForQuery{}, msg)
-	}
-	//assert.True(t, server_passed)
 }
 
 func TestQueryFilter_Handle_SELECT(t *testing.T) {
@@ -1137,10 +1424,35 @@ func TestQueryFilter_Handle_SELECT(t *testing.T) {
 		assert.IsType(t, &model.SqliRetType{}, msgs[1])
 		assert.IsType(t, &model.SqliNFetch{}, msgs[2])
 		assert.IsType(t, &model.SqliEot{}, msgs[3])
-
 	}()
 
 	go func() {
+		parse, err := pgproto.NewFrontend(pgproto.NewChunkReader(pgFront), nil)
+		assert.Nil(t, err)
+
+		msg, err := parse.Receive()
+		assert.Nil(t, err)
+		assert.IsType(t, &pgproto.ParseComplete{}, msg)
+		msg, err = parse.Receive()
+		assert.Nil(t, err)
+		assert.IsType(t, &pgproto.BindComplete{}, msg)
+		msg, err = parse.Receive()
+		assert.Nil(t, err)
+		assert.IsType(t, &pgproto.RowDescription{}, msg)
+		for i := 0; i < 3; i++ {
+			msg, err = parse.Receive()
+			assert.Nil(t, err)
+			assert.IsType(t, &pgproto.DataRow{}, msg)
+		}
+		msg, err = parse.Receive()
+		assert.Nil(t, err)
+		assert.IsType(t, &pgproto.CommandComplete{}, msg)
+		msg, err = parse.Receive()
+		assert.Nil(t, err)
+		assert.IsType(t, &pgproto.ReadyForQuery{}, msg)
+	}()
+
+	func() {
 		//defer func() { server_passed = true }()
 		err := filter.Handle(ctx)
 		assert.Nil(t, err)
@@ -1274,33 +1586,6 @@ func TestQueryFilter_Handle_SELECT(t *testing.T) {
 		err = filter.Handle(ctx)
 		assert.Nil(t, err)
 	}()
-
-	{
-		parse, err := pgproto.NewFrontend(pgproto.NewChunkReader(pgFront), nil)
-		assert.Nil(t, err)
-
-		msg, err := parse.Receive()
-		assert.Nil(t, err)
-		assert.IsType(t, &pgproto.ParseComplete{}, msg)
-		msg, err = parse.Receive()
-		assert.Nil(t, err)
-		assert.IsType(t, &pgproto.BindComplete{}, msg)
-		msg, err = parse.Receive()
-		assert.Nil(t, err)
-		assert.IsType(t, &pgproto.RowDescription{}, msg)
-		for i := 0; i < 3; i++ {
-			msg, err = parse.Receive()
-			assert.Nil(t, err)
-			assert.IsType(t, &pgproto.DataRow{}, msg)
-		}
-		msg, err = parse.Receive()
-		assert.Nil(t, err)
-		assert.IsType(t, &pgproto.CommandComplete{}, msg)
-		msg, err = parse.Receive()
-		assert.Nil(t, err)
-		assert.IsType(t, &pgproto.ReadyForQuery{}, msg)
-	}
-	//assert.True(t, server_passed)
 }
 
 func TestConnectStart(t *testing.T) {
