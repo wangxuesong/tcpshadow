@@ -333,6 +333,7 @@ func (h *executeHandler) Handle(filter *QueryFilter, ctx services.Context) error
 	}
 
 	buffer := bytes.NewReader(ctx.Data().Buffer)
+	groupcount, err := context.MetaData("Groupcount")
 
 	msgs, err := model.UnpackSqliTransmission(buffer)
 	if err != nil {
@@ -340,45 +341,52 @@ func (h *executeHandler) Handle(filter *QueryFilter, ctx services.Context) error
 	}
 	buf := make([]byte, 1024)
 
-	//insertdone
-	buf, err = msgs[0].Pack()
-	if err != nil {
-		return err
-	}
-	reader := bytes.NewReader(buf[2:])
-	insertdone := &model.SqliInsertDone{}
-	err = insertdone.Unpack(reader)
-	if err != nil {
-		return err
-	}
-	_ = insertdone.Serial8
-	_ = insertdone.BigSerial
+	for j := 0; j < len(msgs)-1; j++ {
+		for i := 0; i < groupcount.(int); i++ {
+			//insertdone
+			buf, err = msgs[0].Pack()
+			if err != nil {
+				return err
+			}
+			reader := bytes.NewReader(buf[2:])
+			insertdone := &model.SqliInsertDone{}
+			err = insertdone.Unpack(reader)
+			if err != nil {
+				return err
+			}
+			_ = insertdone.Serial8
+			_ = insertdone.BigSerial
+			j++
 
-	//done
-	buf, err = msgs[1].Pack()
-	if err != nil {
-		return err
-	}
-	reader = bytes.NewReader(buf[2:])
-	done := &model.SqliDone{}
-	err = done.Unpack(reader)
-	if err != nil {
-		return err
-	}
-	_ = done.Rows
+			//done
+			buf, err = msgs[1].Pack()
+			if err != nil {
+				return err
+			}
+			reader = bytes.NewReader(buf[2:])
+			done := &model.SqliDone{}
+			err = done.Unpack(reader)
+			if err != nil {
+				return err
+			}
+			_ = done.Rows
+			j++
 
-	//cost
-	buf, err = msgs[2].Pack()
-	if err != nil {
-		return err
+			//cost
+			buf, err = msgs[2].Pack()
+			if err != nil {
+				return err
+			}
+			reader = bytes.NewReader(buf[2:])
+			cost := &model.SqliCost{}
+			err = cost.Unpack(reader)
+			if err != nil {
+				return err
+			}
+			_ = cost.EstimatedRows
+			j++
+		}
 	}
-	reader = bytes.NewReader(buf[2:])
-	cost := &model.SqliCost{}
-	err = cost.Unpack(reader)
-	if err != nil {
-		return err
-	}
-	_ = cost.EstimatedRows
 
 	//eot
 	_ = msgs[3]

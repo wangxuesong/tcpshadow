@@ -2063,6 +2063,7 @@ func TestQueryExecuteHandler(t *testing.T) {
 	}
 	ctx.SetMetaData("QueryStage", "QueryExecuteDone")
 	ctx.SetMetaData("Idnumber", int16(0))
+	ctx.SetMetaData("Groupcount", 1)
 	filter.SetHandler(&executeHandler{})
 
 	go func() {
@@ -2617,4 +2618,69 @@ func TestQueryCIdescribeHandler2(t *testing.T) {
 	assert.Equal(t, ok, true)
 	assert.Equal(t, stage, "QueryExecuteDone")
 	assert.IsType(t, &executeHandler{}, filter.handler)
+}
+
+func TestQueryExecuteHandler2(t *testing.T) {
+	_, pgBackend := net.Pipe()
+	gbFront, gbBackend := net.Pipe()
+	filter := NewQueryFilter()
+	ctx := &Context{
+		sessionId: 0,
+		front:     pgBackend,
+		backend:   gbFront,
+		state:     QueryState,
+		metadata:  make(map[string]interface{}),
+	}
+	ctx.SetMetaData("QueryStage", "QueryExecuteDone")
+	ctx.SetMetaData("Idnumber", int16(0))
+	ctx.SetMetaData("Groupcount", 2)
+	filter.SetHandler(&executeHandler{})
+
+	go func() {
+		//defer func() { server_passed = true }()
+		buf := make([]byte, 1024)
+		c, err := gbBackend.Read(buf)
+		assert.Nil(t, err)
+		assert.True(t, c > 0)
+		buff := buf[:c]
+		readseeker := bytes.NewReader(buff)
+		msgs, err := model.UnpackSqliTransmission(readseeker)
+		assert.Nil(t, err)
+		assert.IsType(t, &model.SqliID{}, msgs[0])
+		assert.IsType(t, &model.SqliRelease{}, msgs[1])
+		assert.IsType(t, &model.SqliEot{}, msgs[2])
+	}()
+
+	insertdone := &model.SqliInsertDone{
+		Serial8:   1,
+		BigSerial: 2,
+	}
+	done := &model.SqliDone{
+		Warning:  0,
+		Rows:     0,
+		RowID:    0,
+		SerialID: 0,
+	}
+	cost := &model.SqliCost{
+		EstimatedRows: 1,
+		EstimatedIO:   2,
+	}
+	eot := &model.SqliEot{}
+	var transmission model.SqliTransmission
+	transmission = []model.SqliCommand{insertdone, done, cost, insertdone, done, cost, eot}
+	buffer, err := transmission.Pack()
+	assert.Nil(t, err)
+	//TODO: 将 buffer 改成正式的 sqli 数据
+	ctx.SetData(&model.Data{
+		Forward: model.ServerToClient,
+		Buffer:  buffer,
+	})
+	err = filter.Handle(ctx)
+	assert.Nil(t, err)
+	v, err := ctx.MetaData("QueryStage")
+	assert.Nil(t, err)
+	stage, ok := v.(string)
+	assert.Equal(t, ok, true)
+	assert.Equal(t, stage, "QueryRelease")
+	assert.IsType(t, &releaseHandler{}, filter.handler)
 }
