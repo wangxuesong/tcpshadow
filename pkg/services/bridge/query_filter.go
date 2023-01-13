@@ -428,8 +428,12 @@ func (h *releaseHandler) Handle(filter *QueryFilter, ctx services.Context) error
 	}
 
 	buffer := bytes.NewReader(ctx.Data().Buffer)
+	groupcount, err := context.MetaData("Groupcount")
+	if err != nil {
+		return err
+	}
 
-	_, err := model.UnpackSqliTransmission(buffer)
+	_, err = model.UnpackSqliTransmission(buffer)
 	if err != nil {
 		return err
 	}
@@ -440,7 +444,18 @@ func (h *releaseHandler) Handle(filter *QueryFilter, ctx services.Context) error
 	n := &pgproto3.NoData{}
 	c := &pgproto3.CommandComplete{CommandTag: "INSERT 0 1"}
 	re := &pgproto3.ReadyForQuery{TxStatus: 'I'}
-	context.responses = []model.PgCommand{p, b, n, c, re}
+	var beloop []model.PgCommand
+	for i := 0; i < groupcount.(int); i++ {
+		beloop = append(beloop, b, n, c)
+	}
+	if groupcount.(int) > 1 {
+		for _, v := range beloop {
+			context.responses = append(context.responses, v)
+		}
+		context.responses = append(context.responses, re)
+	} else {
+		context.responses = []model.PgCommand{p, b, n, c, re}
+	}
 	buff, err := context.responses.Pack()
 	if err != nil {
 		return err
