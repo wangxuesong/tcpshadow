@@ -255,13 +255,15 @@ func (h *cidescribeHandler) Handle(filter *QueryFilter, ctx services.Context) er
 			var bindType int16
 			bindint := &model.BindColumnInt{}
 			bindchar := &model.BindColumnChar{}
-			t, err := context.MetaData("Datebindint")
-			p, err := context.MetaData("Datebindchar")
 			if err != nil {
 				return err
 			}
 			switch c {
 			case 23:
+				t, err := context.MetaData("Datebindint")
+				if err != nil {
+					return err
+				}
 				bindType = 2
 				bindint = &model.BindColumnInt{
 					Type:      bindType,
@@ -271,6 +273,10 @@ func (h *cidescribeHandler) Handle(filter *QueryFilter, ctx services.Context) er
 				}
 				bind.Columns = []model.BindColumn{*bindint}
 			case 1043:
+				p, err := context.MetaData("Datebindchar")
+				if err != nil {
+					return err
+				}
 				bindType = 0
 				bindchar = &model.BindColumnChar{
 					Type:      bindType,
@@ -511,13 +517,15 @@ func (h *cidescribeSelectHandler) Handle(filter *QueryFilter, ctx services.Conte
 			var bindType int16
 			bindint := &model.BindColumnInt{}
 			bindchar := &model.BindColumnChar{}
-			t, err := context.MetaData("Datebindint")
-			p, err := context.MetaData("Datebindchar")
 			if err != nil {
 				return err
 			}
 			switch c {
 			case 23:
+				t, err := context.MetaData("Datebindint")
+				if err != nil {
+					return err
+				}
 				bindType = 2
 				bindint = &model.BindColumnInt{
 					Type:      bindType,
@@ -527,6 +535,10 @@ func (h *cidescribeSelectHandler) Handle(filter *QueryFilter, ctx services.Conte
 				}
 				bind.Columns = []model.BindColumn{*bindint}
 			case 1043:
+				p, err := context.MetaData("Datebindchar")
+				if err != nil {
+					return err
+				}
 				bindType = 0
 				bindchar = &model.BindColumnChar{
 					Type:      bindType,
