@@ -8,6 +8,7 @@ import (
 	"net"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestConnectFilter_Handle(t *testing.T) {
@@ -38,10 +39,11 @@ func TestConnectFilter_Handle(t *testing.T) {
 		Buffer:  buf,
 	})
 
-	server_passed := false
+	server_passed_gb := false
+	server_passed_pg := false
 	// 8s Server
 	go func() {
-		defer func() { server_passed = true }()
+		defer func() { server_passed_gb = true }()
 		buf := make([]byte, 1024)
 		// read AuthRequest
 		c, err := gbBackend.Read(buf)
@@ -77,7 +79,10 @@ func TestConnectFilter_Handle(t *testing.T) {
 		assert.Nil(t, err)
 		assert.IsType(t, &model.SqliDBOpen{}, msgs[0])
 		assert.IsType(t, &model.SqliEot{}, msgs[1])
+	}()
 
+	go func() {
+		defer func() { server_passed_pg = true }()
 		parse, err := pgproto.NewFrontend(pgproto.NewChunkReader(pgFront), nil)
 		assert.Nil(t, err)
 		msg, err := parse.Receive()
@@ -89,6 +94,36 @@ func TestConnectFilter_Handle(t *testing.T) {
 		msg, err = parse.Receive()
 		assert.Nil(t, err)
 		assert.IsType(t, &pgproto.BackendKeyData{}, msg)
+		msg, err = parse.Receive()
+		assert.Nil(t, err)
+		assert.IsType(t, &pgproto.ReadyForQuery{}, msg)
+
+		parse, err = pgproto.NewFrontend(pgproto.NewChunkReader(pgFront), nil)
+		assert.Nil(t, err)
+		msg, err = parse.Receive()
+		assert.Nil(t, err)
+		assert.IsType(t, &pgproto.ParseComplete{}, msg)
+		msg, err = parse.Receive()
+		assert.Nil(t, err)
+		assert.IsType(t, &pgproto.BindComplete{}, msg)
+		msg, err = parse.Receive()
+		assert.Nil(t, err)
+		assert.IsType(t, &pgproto.CommandComplete{}, msg)
+		msg, err = parse.Receive()
+		assert.Nil(t, err)
+		assert.IsType(t, &pgproto.ReadyForQuery{}, msg)
+
+		parse, err = pgproto.NewFrontend(pgproto.NewChunkReader(pgFront), nil)
+		assert.Nil(t, err)
+		msg, err = parse.Receive()
+		assert.Nil(t, err)
+		assert.IsType(t, &pgproto.ParseComplete{}, msg)
+		msg, err = parse.Receive()
+		assert.Nil(t, err)
+		assert.IsType(t, &pgproto.BindComplete{}, msg)
+		msg, err = parse.Receive()
+		assert.Nil(t, err)
+		assert.IsType(t, &pgproto.CommandComplete{}, msg)
 		msg, err = parse.Receive()
 		assert.Nil(t, err)
 		assert.IsType(t, &pgproto.ReadyForQuery{}, msg)
@@ -202,38 +237,6 @@ func TestConnectFilter_Handle(t *testing.T) {
 		assert.Nil(t, err)
 	}()
 
-	go func() {
-		parse, err := pgproto.NewFrontend(pgproto.NewChunkReader(pgFront), nil)
-		assert.Nil(t, err)
-		msg, err := parse.Receive()
-		assert.Nil(t, err)
-		assert.IsType(t, &pgproto.ParseComplete{}, msg)
-		msg, err = parse.Receive()
-		assert.Nil(t, err)
-		assert.IsType(t, &pgproto.BindComplete{}, msg)
-		msg, err = parse.Receive()
-		assert.Nil(t, err)
-		assert.IsType(t, &pgproto.CommandComplete{}, msg)
-		msg, err = parse.Receive()
-		assert.Nil(t, err)
-		assert.IsType(t, &pgproto.ReadyForQuery{}, msg)
-
-		parse, err = pgproto.NewFrontend(pgproto.NewChunkReader(pgFront), nil)
-		assert.Nil(t, err)
-		msg, err = parse.Receive()
-		assert.Nil(t, err)
-		assert.IsType(t, &pgproto.ParseComplete{}, msg)
-		msg, err = parse.Receive()
-		assert.Nil(t, err)
-		assert.IsType(t, &pgproto.BindComplete{}, msg)
-		msg, err = parse.Receive()
-		assert.Nil(t, err)
-		assert.IsType(t, &pgproto.CommandComplete{}, msg)
-		msg, err = parse.Receive()
-		assert.Nil(t, err)
-		assert.IsType(t, &pgproto.ReadyForQuery{}, msg)
-	}()
-
 	{
 		buffer := (&pgproto.Parse{
 			Name:          "",
@@ -283,8 +286,10 @@ func TestConnectFilter_Handle(t *testing.T) {
 		err = filter.Handle(ctx)
 		assert.Nil(t, err)
 	}
+	time.Sleep(2 * time.Second)
 
-	assert.True(t, server_passed)
+	assert.True(t, server_passed_gb)
+	assert.True(t, server_passed_pg)
 	assert.Equal(t, QueryState, ctx.state)
 }
 
@@ -315,9 +320,11 @@ func TestQueryFilter_Handle_INSERT_BatchBind(t *testing.T) {
 		Buffer:  buffer,
 	})
 
+	server_passed_gb := false
+	server_passed_pg := false
 	// 8s Server
 	go func() {
-		//defer func() { server_passed = true }()
+		defer func() { server_passed_gb = true }()
 		buf := make([]byte, 1024)
 		c, err := gbBackend.Read(buf)
 		assert.Nil(t, err)
@@ -372,6 +379,7 @@ func TestQueryFilter_Handle_INSERT_BatchBind(t *testing.T) {
 	}()
 
 	go func() {
+		defer func() { server_passed_pg = true }()
 		parse, err := pgproto.NewFrontend(pgproto.NewChunkReader(pgFront), nil)
 		assert.Nil(t, err)
 		msg, err := parse.Receive()
@@ -410,7 +418,7 @@ func TestQueryFilter_Handle_INSERT_BatchBind(t *testing.T) {
 		assert.IsType(t, &pgproto.ReadyForQuery{}, msg)
 	}()
 
-	func() {
+	{
 		err := filter.Handle(ctx)
 		assert.Nil(t, err)
 
@@ -578,7 +586,11 @@ func TestQueryFilter_Handle_INSERT_BatchBind(t *testing.T) {
 		})
 		err = filter.Handle(ctx)
 		assert.Nil(t, err)
-	}()
+	}
+	time.Sleep(2 * time.Second)
+
+	assert.True(t, server_passed_gb)
+	assert.True(t, server_passed_pg)
 }
 
 func TestQueryFilter_Handle_INSERT_Bind(t *testing.T) {
@@ -619,10 +631,11 @@ func TestQueryFilter_Handle_INSERT_Bind(t *testing.T) {
 		Buffer:  buffer,
 	})
 
-	//server_passed := false
+	server_passed_gb := false
+	server_passed_pg := false
 	// 8s Server
 	go func() {
-		//defer func() { server_passed = true }()
+		defer func() { server_passed_gb = true }()
 		buf := make([]byte, 1024)
 		c, err := gbBackend.Read(buf)
 		assert.Nil(t, err)
@@ -675,6 +688,7 @@ func TestQueryFilter_Handle_INSERT_Bind(t *testing.T) {
 	}()
 
 	go func() {
+		defer func() { server_passed_pg = true }()
 		parse, err := pgproto.NewFrontend(pgproto.NewChunkReader(pgFront), nil)
 		assert.Nil(t, err)
 		msg, err := parse.Receive()
@@ -826,6 +840,10 @@ func TestQueryFilter_Handle_INSERT_Bind(t *testing.T) {
 		err = filter.Handle(ctx)
 		assert.Nil(t, err)
 	}()
+	time.Sleep(2 * time.Second)
+
+	assert.True(t, server_passed_gb)
+	assert.True(t, server_passed_pg)
 }
 
 func TestQueryFilter_Handle_INSERT(t *testing.T) {
@@ -866,10 +884,11 @@ func TestQueryFilter_Handle_INSERT(t *testing.T) {
 		Buffer:  buffer,
 	})
 
-	//server_passed := false
+	server_passed_gb := false
+	server_passed_pg := false
 	// 8s Server
 	go func() {
-		//defer func() { server_passed = true }()
+		defer func() { server_passed_gb = true }()
 		buf := make([]byte, 1024)
 		c, err := gbBackend.Read(buf)
 		assert.Nil(t, err)
@@ -921,6 +940,7 @@ func TestQueryFilter_Handle_INSERT(t *testing.T) {
 	}()
 
 	go func() {
+		defer func() { server_passed_pg = true }()
 		parse, err := pgproto.NewFrontend(pgproto.NewChunkReader(pgFront), nil)
 		assert.Nil(t, err)
 
@@ -942,7 +962,6 @@ func TestQueryFilter_Handle_INSERT(t *testing.T) {
 	}()
 
 	func() {
-		//defer func() { server_passed = true }()
 		err := filter.Handle(ctx)
 		assert.Nil(t, err)
 
@@ -1073,6 +1092,10 @@ func TestQueryFilter_Handle_INSERT(t *testing.T) {
 		err = filter.Handle(ctx)
 		assert.Nil(t, err)
 	}()
+	time.Sleep(2 * time.Second)
+
+	assert.True(t, server_passed_gb)
+	assert.True(t, server_passed_pg)
 }
 
 func TestQueryFilter_Handle_SELECT_Bind(t *testing.T) {
@@ -1113,9 +1136,11 @@ func TestQueryFilter_Handle_SELECT_Bind(t *testing.T) {
 		Buffer:  buffer,
 	})
 
+	server_passed_gb := false
+	server_passed_pg := false
 	// 8s Server
 	go func() {
-		//defer func() { server_passed = true }()
+		defer func() { server_passed_gb = true }()
 		buf := make([]byte, 1024)
 		c, err := gbBackend.Read(buf)
 		assert.Nil(t, err)
@@ -1171,6 +1196,7 @@ func TestQueryFilter_Handle_SELECT_Bind(t *testing.T) {
 	}()
 
 	go func() {
+		defer func() { server_passed_pg = true }()
 		parse, err := pgproto.NewFrontend(pgproto.NewChunkReader(pgFront), nil)
 		assert.Nil(t, err)
 
@@ -1330,6 +1356,10 @@ func TestQueryFilter_Handle_SELECT_Bind(t *testing.T) {
 		err = filter.Handle(ctx)
 		assert.Nil(t, err)
 	}()
+	time.Sleep(2 * time.Second)
+
+	assert.True(t, server_passed_gb)
+	assert.True(t, server_passed_pg)
 }
 
 func TestQueryFilter_Handle_SELECT(t *testing.T) {
@@ -1370,10 +1400,11 @@ func TestQueryFilter_Handle_SELECT(t *testing.T) {
 		Buffer:  buffer,
 	})
 
-	//server_passed := false
+	server_passed_gb := false
+	server_passed_pg := false
 	// 8s Server
 	go func() {
-		//defer func() { server_passed = true }()
+		defer func() { server_passed_gb = true }()
 		buf := make([]byte, 1024)
 		c, err := gbBackend.Read(buf)
 		assert.Nil(t, err)
@@ -1427,6 +1458,7 @@ func TestQueryFilter_Handle_SELECT(t *testing.T) {
 	}()
 
 	go func() {
+		defer func() { server_passed_pg = true }()
 		parse, err := pgproto.NewFrontend(pgproto.NewChunkReader(pgFront), nil)
 		assert.Nil(t, err)
 
@@ -1586,6 +1618,10 @@ func TestQueryFilter_Handle_SELECT(t *testing.T) {
 		err = filter.Handle(ctx)
 		assert.Nil(t, err)
 	}()
+	time.Sleep(2 * time.Second)
+
+	assert.True(t, server_passed_gb)
+	assert.True(t, server_passed_pg)
 }
 
 func TestConnectStart(t *testing.T) {
