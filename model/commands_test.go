@@ -599,8 +599,8 @@ func TestSqliCIdescribe_Pack_Unpack(t *testing.T) {
 }
 
 func TestSqliIdescribe_Pack_Unpack(t *testing.T) {
-	idescribe := &SqliIdescribe{fields: make([]Sqlifields, 0)}
-	idescribe.fields = append(idescribe.fields)
+	idescribe := &SqliIdescribe{Fields: nil}
+	idescribe.Fields = append(idescribe.Fields)
 	buf, err := idescribe.Pack()
 	expect := []byte{0, 125, 0, 0, 0, 0}
 	assert.NoError(t, err)
@@ -612,5 +612,5 @@ func TestSqliIdescribe_Pack_Unpack(t *testing.T) {
 	assert.Equal(t, idescribe, cmd)
 	pos, err := buffer.Seek(0, io.SeekCurrent)
 	assert.NoError(t, err)
-	assert.EqualValues(t, pos, len(expect))
+	assert.EqualValues(t, pos, len(expect)-2)
 }
