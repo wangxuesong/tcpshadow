@@ -3,8 +3,6 @@ package model
 import (
 	"bytes"
 	"encoding/binary"
-	"unsafe"
-
 	//"fmt"
 	"github.com/zhuangsirui/binpacker"
 	"io"
@@ -70,7 +68,13 @@ func (au *AuthRequest) Pack() ([]byte, error) {
 	var pad byte
 	buffer := new(bytes.Buffer)
 	packer := binpacker.NewPacker(binary.BigEndian, buffer)
-	packer.PushUint16(uint16(unsafe.Sizeof(*au) + 73))
+	length := 141 + len(au.Dpath)*6 + len(au.Ieeem) + len(au.Sqlexec) + len(au.Version) +
+		len(au.Rds) + len(au.Sqli) + len(au.Clientname) + len(au.Password) + len(au.Noname12) + len(au.Tlitcp) +
+		len(au.Servername) + len(au.Noname27) + len(au.Directory) + len(au.Appname)
+	for _, c := range au.Dpath {
+		length = length + len(c.Dbpath) + len(c.Dbpathattribute)
+	}
+	packer.PushUint16(uint16(length))
 	packer.PushUint8(au.Noname1)
 	packer.PushUint8(au.Noname2)
 	packer.PushUint16(au.Noname3)
@@ -314,7 +318,9 @@ func (au *AuthResponse) Pack() ([]byte, error) {
 	var pad byte
 	buffer := new(bytes.Buffer)
 	packer := binpacker.NewPacker(binary.BigEndian, buffer)
-	packer.PushUint16(uint16(unsafe.Sizeof(*au) + 23))
+	packer.PushUint16(uint16(len(au.IEEEI) + len(au.Srvinfx) + len(au.Version) + len(au.Software) +
+		len(au.Clientname) + len(au.Noname14) + len(au.Noname15) + len(au.Path1) + len(au.Path2) +
+		len(au.Path3) + 132))
 	packer.PushByte(au.Noname1)
 	packer.PushUint16(au.Noname2)
 	packer.PushByte(au.Noname3)
