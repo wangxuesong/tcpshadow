@@ -75,35 +75,35 @@ type AuthRequestBuilder interface {
 }
 
 type RequestBuilder struct {
-	authrequest AuthRequest
+	Aauthrequest AuthRequest
 }
 
 func (a *RequestBuilder) BuildVersion() {
-	a.authrequest.Version = "9.280"
+	a.Aauthrequest.Version = "9.280"
 }
 
 func (a *RequestBuilder) BuildClientname() {
-	a.authrequest.Clientname = "gbasedbt"
+	a.Aauthrequest.Clientname = "gbasedbt"
 }
 
 func (a *RequestBuilder) BuildPassword() {
-	a.authrequest.Password = "HmQOYC1ZfTYt+vlXUhkn3w=="
+	a.Aauthrequest.Password = "HmQOYC1ZfTYt+vlXUhkn3w=="
 }
 
 func (a *RequestBuilder) BuildServername() {
-	a.authrequest.Servername = "gbaseserver"
+	a.Aauthrequest.Servername = "gbaseserver"
 }
 
 func (a *RequestBuilder) BuildDirectory() {
-	a.authrequest.Directory = "E:\\JDBCTest\\JDBCTest"
+	a.Aauthrequest.Directory = "E:\\JDBCTest\\JDBCTest"
 }
 
 func (a *RequestBuilder) BuildAppname() {
-	a.authrequest.Appname = "/E:/JDBCTest/JDBCTest/lib/gbasedbtjdbc_3.3.0_2.jarConnectionTest/Test"
+	a.Aauthrequest.Appname = "/E:/JDBCTest/JDBCTest/lib/gbasedbtjdbc_3.3.0_2.jarConnectionTest/Test"
 }
 
 func (a RequestBuilder) CreateActor() *AuthRequest {
-	return &a.authrequest
+	return &a.Aauthrequest
 }
 
 type AuthRequestController struct {
