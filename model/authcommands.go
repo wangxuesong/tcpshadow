@@ -64,6 +64,68 @@ type AuthRequest struct {
 	Asceot           uint16
 }
 
+type AuthRequestBuilder interface {
+	BuildVersion()
+	BuildClientname()
+	BuildPassword()
+	BuildServername()
+	BuildDirectory()
+	BuildAppname()
+	CreateActor() *AuthRequest
+}
+
+type RequestBuilder struct {
+	authrequest AuthRequest
+}
+
+func (a *RequestBuilder) BuildVersion() {
+	a.authrequest.Version = "9.280"
+}
+
+func (a *RequestBuilder) BuildClientname() {
+	a.authrequest.Clientname = "gbasedbt"
+}
+
+func (a *RequestBuilder) BuildPassword() {
+	a.authrequest.Password = "HmQOYC1ZfTYt+vlXUhkn3w=="
+}
+
+func (a *RequestBuilder) BuildServername() {
+	a.authrequest.Servername = "gbaseserver"
+}
+
+func (a *RequestBuilder) BuildDirectory() {
+	a.authrequest.Directory = "E:\\JDBCTest\\JDBCTest"
+}
+
+func (a *RequestBuilder) BuildAppname() {
+	a.authrequest.Appname = "/E:/JDBCTest/JDBCTest/lib/gbasedbtjdbc_3.3.0_2.jarConnectionTest/Test"
+}
+
+func (a RequestBuilder) CreateActor() *AuthRequest {
+	return &a.authrequest
+}
+
+type AuthRequestController struct {
+	authRequestBuilder AuthRequestBuilder
+}
+
+func (ac *AuthRequestController) Construct() *AuthRequest {
+	ac.authRequestBuilder.BuildVersion()
+	ac.authRequestBuilder.BuildClientname()
+	ac.authRequestBuilder.BuildPassword()
+	ac.authRequestBuilder.BuildServername()
+	ac.authRequestBuilder.BuildDirectory()
+	ac.authRequestBuilder.BuildAppname()
+	return ac.authRequestBuilder.CreateActor()
+}
+
+func NewAuthRequestController(ab AuthRequestBuilder) *AuthRequestController {
+	return &AuthRequestController{
+		authRequestBuilder: ab,
+	}
+}
+
 func (au *AuthRequest) Pack() ([]byte, error) {
 	var pad byte
 	buffer := new(bytes.Buffer)

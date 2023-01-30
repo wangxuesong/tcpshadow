@@ -76,7 +76,7 @@ func (h *startMessageHandler) Handle(filter *ConnectFilter, ctx services.Context
 
 	context.requests = []model.PgCommand{msg}
 
-	authrequest, err := (&model.AuthRequest{
+	authrequest := &model.AuthRequest{
 		Noname1:    1,
 		Noname2:    60,
 		Noname3:    0,
@@ -86,15 +86,15 @@ func (h *startMessageHandler) Handle(filter *ConnectFilter, ctx services.Context
 		Ieeem:      "IEEEM",
 		Noname7:    108,
 		Sqlexec:    "sqlexec",
-		Version:    "9.280",
+		Version:    "",
 		Rds:        "RDS#R000000",
 		Sqli:       "sqli",
 		Noname8:    316,
 		Noname9:    0,
 		Noname10:   0,
 		Noname11:   1,
-		Clientname: "gbasedbt",
-		Password:   "lvZpxbgMFwx8jrpeeicQEQ==",
+		Clientname: "",
+		Password:   "",
 		Noname12:   "ol",
 		Noname13:   61,
 		Tlitcp:     "tlitcp",
@@ -102,7 +102,7 @@ func (h *startMessageHandler) Handle(filter *ConnectFilter, ctx services.Context
 		Noname15:   104,
 		Asf:        11,
 		Noname16:   3,
-		Servername: "ol_gbasedbt_1",
+		Servername: "",
 		Noname17:   0,
 		Noname18:   0,
 		Noname19:   0,
@@ -135,15 +135,21 @@ func (h *startMessageHandler) Handle(filter *ConnectFilter, ctx services.Context
 		Longthreadid:     1,
 		Noname27:         "bogon",
 		Noname28:         0,
-		Directory:        "/Users/martin/projects/8sprojects/JDBCTest",
+		Directory:        "",
 		Noname29:         116,
 		Appnamelengthall: 111,
 		Noname30:         0,
 		Noname31:         0,
-		Appname:          "/Users/martin/projects/8sprojects/JDBCTest/lib/gbasedbtjdbc_3.3.0_2.jarConnectionTest/ConnectionTest",
+		Appname:          "",
 		Asceot:           127,
-	}).Pack()
-	ctx.Data().Buffer = authrequest
+	}
+	tRequestBuilder := model.RequestBuilder{
+		*authrequest,
+	}
+	tActorController := model.NewAuthRequestController(&tRequestBuilder)
+	authrequest = tActorController.Construct()
+	pack, err := authrequest.Pack()
+	ctx.Data().Buffer = pack
 	context.backend.Write(ctx.Data().Buffer)
 	ctx.SetMetaData("ConnectStage", "ConnectProtocol")
 	filter.SetHandler(&authResponseHandler{})
