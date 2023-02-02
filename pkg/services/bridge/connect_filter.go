@@ -64,12 +64,12 @@ func (h *startMessageHandler) Handle(filter *ConnectFilter, ctx services.Context
 
 	backend, err := pgproto3.NewBackend(pgproto3.NewChunkReader(buff), nil)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to generate NewBackend, err: %T", err)
 	}
 
 	msg, err := backend.ReceiveStartupMessage()
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to receive StartupMessage, err: %T", err)
 	}
 	_ = msg.Parameters["user"]
 	_ = msg.Parameters["password"]
@@ -150,6 +150,9 @@ func (h *startMessageHandler) Handle(filter *ConnectFilter, ctx services.Context
 		BuildPassword("HmQOYC1ZfTYt+vlXUhkn3w==").
 		BuildGbaseS("gbaseserver", 80).Create()
 	pack, err := authrequest.Pack()
+	if err != nil {
+		return fmt.Errorf("failed to pack AuthRequest, err: %T", err)
+	}
 	ctx.Data().Buffer = pack
 	context.backend.Write(ctx.Data().Buffer)
 	ctx.SetMetaData("ConnectStage", "ConnectProtocol")
@@ -180,7 +183,7 @@ func (h *authResponseHandler) Handle(filter *ConnectFilter, ctx services.Context
 	transmission = []model.SqliCommand{protocol, eot}
 	buf, err := transmission.Pack()
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to pack SqliProtocols transmission packages, err: %T", err)
 	}
 	ctx.Data().Buffer = buf
 	context.backend.Write(ctx.Data().Buffer)
@@ -202,6 +205,9 @@ func (h *protocolHandler) Handle(filter *ConnectFilter, ctx services.Context) er
 	reader := bytes.NewReader(ctx.Data().Buffer)
 	//TODO: receive SqliProtocols
 	_, err := model.UnpackSqliTransmission(reader)
+	if err != nil {
+		return fmt.Errorf("failed to unpack SqliProtocols response packages, err: %T", err)
+	}
 
 	//TODO: send SqliInfo
 	info := &model.SqliInfo{
@@ -220,6 +226,9 @@ func (h *protocolHandler) Handle(filter *ConnectFilter, ctx services.Context) er
 	var transmission model.SqliTransmission
 	transmission = []model.SqliCommand{info, eot}
 	buf, err := transmission.Pack()
+	if err != nil {
+		return fmt.Errorf("failed to pack SqliInfo transmission packages, err: %T", err)
+	}
 	if err != nil {
 		return err
 	}
@@ -243,6 +252,9 @@ func (h *infoHandler) Handle(filter *ConnectFilter, ctx services.Context) error 
 	reader := bytes.NewReader(ctx.Data().Buffer)
 	//TODO: receive SqliEot
 	_, err := model.UnpackSqliTransmission(reader)
+	if err != nil {
+		return fmt.Errorf("failed to unpack SqliInfo response packages, err: %T", err)
+	}
 
 	//TODO: send SqliDBOpen
 	deopen := &model.SqliDBOpen{
@@ -254,7 +266,7 @@ func (h *infoHandler) Handle(filter *ConnectFilter, ctx services.Context) error 
 	transmission = []model.SqliCommand{deopen, eot}
 	buf, err := transmission.Pack()
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to pack SqliDBOpen transmission packages, err: %T", err)
 	}
 	ctx.Data().Buffer = buf
 	context.backend.Write(ctx.Data().Buffer)
@@ -276,6 +288,9 @@ func (h *dbOpenHandler) Handle(filter *ConnectFilter, ctx services.Context) erro
 	reader := bytes.NewReader(ctx.Data().Buffer)
 	//TODO: receive SqliDone,SqliCost,SqliEot
 	_, err := model.UnpackSqliTransmission(reader)
+	if err != nil {
+		return fmt.Errorf("failed to unpack SqliDBOpen response packages, err: %T", err)
+	}
 
 	// TODO:send Authentication to front
 	auth := &pgproto3.Authentication{
@@ -301,7 +316,7 @@ func (h *dbOpenHandler) Handle(filter *ConnectFilter, ctx services.Context) erro
 
 	_, err = context.front.Write(buf)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to pack PgAuthOK transmission packages, err: %T", err)
 	}
 	//ctx.SetMetaData("ConnectStage", EndStage)
 	ctx.SetMetaData("ConnectStage", "ConnectSet")
@@ -322,11 +337,11 @@ func (h *connectSet) Handle(filter *ConnectFilter, ctx services.Context) error {
 	parser := model.NewPgClientParser()
 	_, err := parser.Append(ctx.Data().Buffer)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to append parser buffer, err: %T", err)
 	}
 	msg, err := parser.ParseMessage()
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to unpack ParseMessage, err: %T", err)
 	}
 
 	buf := make([]byte, 2048)
@@ -335,7 +350,7 @@ func (h *connectSet) Handle(filter *ConnectFilter, ctx services.Context) error {
 	parse := &pgproto3.Parse{}
 	err = parse.Decode(buf[5:])
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to decode Parse Message, err: %T", err)
 	}
 	query := parse.Query
 	tag := query[:3]
@@ -348,27 +363,27 @@ func (h *connectSet) Handle(filter *ConnectFilter, ctx services.Context) error {
 	context.responses = []model.PgCommand{parsecomplete, bindcomplete, commandcomplete, readyforquery}
 	buf, err = context.responses.Pack()
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to pack PgCompleteMessage, err: %T", err)
 	}
 	context.front.Write(buf)
 	if set != "application" {
 		err = ctx.SetMetaData("ConnectStage", "ConnectSet")
+		if err != nil {
+			return fmt.Errorf("failed to SetMetaData ConnectSet, err: %T", err)
+		}
 		filter.SetHandler(&connectSet{})
 		return nil
-		if err != nil {
-			return err
-		}
 	} else {
 		err = ctx.SetMetaData("ConnectStage", EndStage)
-		filter.SetHandler(&connectSet{})
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to SetMetaData EndStage, err: %T", err)
 		}
+		filter.SetHandler(&connectSet{})
 	}
 
 	v, err := context.MetaData("ConnectStage")
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to MetaData ConnectStage, err: %T", err)
 	}
 	stage, ok := v.(string)
 	if !ok {
