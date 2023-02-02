@@ -80,7 +80,7 @@ func TestAuthRequest_Pack(t *testing.T) {
 	}
 	authrequest = tRequestBuilder.BuildClientname("gbasedbt").
 		BuildPassword("HmQOYC1ZfTYt+vlXUhkn3w==").
-		BuildServername("gbaseserver").Create()
+		BuildGbaseS("gbaseserver", 80).Create()
 
 	pack, err := authrequest.Pack()
 	assert.Nil(t, err)

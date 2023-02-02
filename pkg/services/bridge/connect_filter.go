@@ -135,12 +135,12 @@ func (h *startMessageHandler) Handle(filter *ConnectFilter, ctx services.Context
 		Longthreadid:     1,
 		Noname27:         "bogon",
 		Noname28:         0,
-		Directory:        "",
+		Directory:        "E:\\JDBCTest\\JDBCTest",
 		Noname29:         116,
 		Appnamelengthall: 111,
 		Noname30:         0,
 		Noname31:         0,
-		Appname:          "",
+		Appname:          "/E:/JDBCTest/JDBCTest/lib/gbasedbtjdbc_3.3.0_2.jarConnectionTest/Test",
 		Asceot:           127,
 	}
 	tRequestBuilder := model.RequestBuilder{
@@ -148,7 +148,7 @@ func (h *startMessageHandler) Handle(filter *ConnectFilter, ctx services.Context
 	}
 	authrequest = tRequestBuilder.BuildClientname("gbasedbt").
 		BuildPassword("HmQOYC1ZfTYt+vlXUhkn3w==").
-		BuildServername("gbaseserver").Create()
+		BuildGbaseS("gbaseserver", 80).Create()
 	pack, err := authrequest.Pack()
 	ctx.Data().Buffer = pack
 	context.backend.Write(ctx.Data().Buffer)

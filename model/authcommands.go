@@ -78,8 +78,9 @@ func (a *RequestBuilder) BuildPassword(password string) *RequestBuilder {
 	return a
 }
 
-func (a *RequestBuilder) BuildServername(servername string) *RequestBuilder {
+func (a *RequestBuilder) BuildGbaseS(servername string, appnamelengthall uint16) *RequestBuilder {
 	a.Aauthrequest.Servername = servername
+	a.Aauthrequest.Appnamelengthall = appnamelengthall
 	return a
 }
 
