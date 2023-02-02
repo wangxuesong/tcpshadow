@@ -64,66 +64,27 @@ type AuthRequest struct {
 	Asceot           uint16
 }
 
-type AuthRequestBuilder interface {
-	BuildVersion()
-	BuildClientname()
-	BuildPassword()
-	BuildServername()
-	BuildDirectory()
-	BuildAppname()
-	CreateActor() *AuthRequest
-}
-
 type RequestBuilder struct {
 	Aauthrequest AuthRequest
 }
 
-func (a *RequestBuilder) BuildVersion() {
-	a.Aauthrequest.Version = "9.280"
+func (a *RequestBuilder) BuildClientname(clientname string) *RequestBuilder {
+	a.Aauthrequest.Clientname = clientname
+	return a
 }
 
-func (a *RequestBuilder) BuildClientname() {
-	a.Aauthrequest.Clientname = "gbasedbt"
+func (a *RequestBuilder) BuildPassword(password string) *RequestBuilder {
+	a.Aauthrequest.Password = password
+	return a
 }
 
-func (a *RequestBuilder) BuildPassword() {
-	a.Aauthrequest.Password = "HmQOYC1ZfTYt+vlXUhkn3w=="
+func (a *RequestBuilder) BuildServername(servername string) *RequestBuilder {
+	a.Aauthrequest.Servername = servername
+	return a
 }
 
-func (a *RequestBuilder) BuildServername() {
-	a.Aauthrequest.Servername = "gbaseserver"
-}
-
-func (a *RequestBuilder) BuildDirectory() {
-	a.Aauthrequest.Directory = "E:\\JDBCTest\\JDBCTest"
-}
-
-func (a *RequestBuilder) BuildAppname() {
-	a.Aauthrequest.Appname = "/E:/JDBCTest/JDBCTest/lib/gbasedbtjdbc_3.3.0_2.jarConnectionTest/Test"
-}
-
-func (a RequestBuilder) CreateActor() *AuthRequest {
+func (a RequestBuilder) Create() *AuthRequest {
 	return &a.Aauthrequest
-}
-
-type AuthRequestController struct {
-	authRequestBuilder AuthRequestBuilder
-}
-
-func (ac *AuthRequestController) Construct() *AuthRequest {
-	ac.authRequestBuilder.BuildVersion()
-	ac.authRequestBuilder.BuildClientname()
-	ac.authRequestBuilder.BuildPassword()
-	ac.authRequestBuilder.BuildServername()
-	ac.authRequestBuilder.BuildDirectory()
-	ac.authRequestBuilder.BuildAppname()
-	return ac.authRequestBuilder.CreateActor()
-}
-
-func NewAuthRequestController(ab AuthRequestBuilder) *AuthRequestController {
-	return &AuthRequestController{
-		authRequestBuilder: ab,
-	}
 }
 
 func (au *AuthRequest) Pack() ([]byte, error) {

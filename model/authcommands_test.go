@@ -8,16 +8,16 @@ import (
 
 func TestAuthRequest_Pack(t *testing.T) {
 	authrequest := &AuthRequest{
-		Noname1: 1,
-		Noname2: 60,
-		Noname3: 0,
-		Noname4: 100,
-		Noname5: 101,
-		Noname6: 61,
-		Ieeem:   "IEEEM",
-		Noname7: 108,
-		Sqlexec: "sqlexec",
-		//Version:    "9.280",
+		Noname1:  1,
+		Noname2:  60,
+		Noname3:  0,
+		Noname4:  100,
+		Noname5:  101,
+		Noname6:  61,
+		Ieeem:    "IEEEM",
+		Noname7:  108,
+		Sqlexec:  "sqlexec",
+		Version:  "9.280",
 		Rds:      "RDS#R000000",
 		Sqli:     "sqli",
 		Noname8:  316,
@@ -60,26 +60,27 @@ func TestAuthRequest_Pack(t *testing.T) {
 			Dbpath:          "NODEFDAC",
 			Dbpathattribute: "no",
 		}},
-		Noname24:     107,
-		Noname25:     0,
-		Noname26:     0,
-		Longthreadid: 1,
-		Noname27:     "MM-202201031507",
-		Noname28:     0,
-		//Directory:        "E:\\JDBCTest\\JDBCTest",
+		Noname24:         107,
+		Noname25:         0,
+		Noname26:         0,
+		Longthreadid:     1,
+		Noname27:         "MM-202201031507",
+		Noname28:         0,
+		Directory:        "E:\\JDBCTest\\JDBCTest",
 		Noname29:         116,
 		Appnamelengthall: 80,
 		Noname30:         0,
 		Noname31:         0,
-		//Appname:          "/E:/JDBCTest/JDBCTest/lib/gbasedbtjdbc_3.3.0_2.jarConnectionTest/Test",
-		Asceot: 127,
+		Appname:          "/E:/JDBCTest/JDBCTest/lib/gbasedbtjdbc_3.3.0_2.jarConnectionTest/Test",
+		Asceot:           127,
 	}
 
 	tRequestBuilder := RequestBuilder{
 		Aauthrequest: *authrequest,
 	}
-	tActorController := NewAuthRequestController(&tRequestBuilder)
-	authrequest = tActorController.Construct()
+	authrequest = tRequestBuilder.BuildClientname("gbasedbt").
+		BuildPassword("HmQOYC1ZfTYt+vlXUhkn3w==").
+		BuildServername("gbaseserver").Create()
 
 	pack, err := authrequest.Pack()
 	assert.Nil(t, err)

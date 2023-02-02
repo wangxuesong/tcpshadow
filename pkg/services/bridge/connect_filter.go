@@ -146,8 +146,9 @@ func (h *startMessageHandler) Handle(filter *ConnectFilter, ctx services.Context
 	tRequestBuilder := model.RequestBuilder{
 		*authrequest,
 	}
-	tActorController := model.NewAuthRequestController(&tRequestBuilder)
-	authrequest = tActorController.Construct()
+	authrequest = tRequestBuilder.BuildClientname("gbasedbt").
+		BuildPassword("HmQOYC1ZfTYt+vlXUhkn3w==").
+		BuildServername("gbaseserver").Create()
 	pack, err := authrequest.Pack()
 	ctx.Data().Buffer = pack
 	context.backend.Write(ctx.Data().Buffer)
