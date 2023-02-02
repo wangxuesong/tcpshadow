@@ -76,7 +76,7 @@ func TestAuthRequest_Pack(t *testing.T) {
 	}
 
 	tRequestBuilder := RequestBuilder{
-		authrequest: *authrequest,
+		Aauthrequest: *authrequest,
 	}
 	tActorController := NewAuthRequestController(&tRequestBuilder)
 	authrequest = tActorController.Construct()
