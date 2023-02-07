@@ -241,16 +241,12 @@ func (h *connectSet) Handle(filter *ConnectFilter, ctx services.Context) error {
 	buf := make([]byte, 2048)
 	//parse
 	b, err := ctx.MetaData("pbes")
-	buf = b.(model.PgTransmission)[0].Encode(nil)
-	parse := &pgproto3.Parse{}
-	parse.Decode(buf[5:])
+	parse := b.(model.PgTransmission)[0].(model.PgCommand).(*pgproto3.Parse)
 	query := parse.Query
-	tag := query[:3]
-	set := query[4:15]
 
 	parsecomplete := &pgproto3.ParseComplete{}
 	bindcomplete := &pgproto3.BindComplete{}
-	commandcomplete := &pgproto3.CommandComplete{CommandTag: tag}
+	commandcomplete := &pgproto3.CommandComplete{CommandTag: query[:3]}
 	readyforquery := &pgproto3.ReadyForQuery{TxStatus: 'T'}
 	context, ok := ctx.(*Context)
 	if !ok {
@@ -262,7 +258,7 @@ func (h *connectSet) Handle(filter *ConnectFilter, ctx services.Context) error {
 		return fmt.Errorf("failed to pack PgCompleteMessage, err: %T", err)
 	}
 	context.front.Write(buf)
-	if set != "application" {
+	if query[4:15] != "application" {
 		err = ctx.SetMetaData("ConnectStage", "ConnectSet")
 		if err != nil {
 			return fmt.Errorf("failed to SetMetaData ConnectSet, err: %T", err)

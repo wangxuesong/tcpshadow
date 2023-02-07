@@ -93,50 +93,16 @@ func (h *prepareHandler) Handle(filter *QueryFilter, ctx services.Context) error
 	//TODO: receive Sqli
 	buf := make([]byte, 1024)
 	b, err := ctx.MetaData("sqliprepare")
+
 	//describe
-	buf, err = b.(model.SqliTransmission)[0].Pack()
-	if err != nil {
-		return err
-	}
-	reader := bytes.NewReader(buf[2:])
-	describe := &model.SqliDescribe{}
-	err = describe.Unpack(reader)
-	if err != nil {
-		return err
-	}
+	describe := b.(model.SqliTransmission)[0].(model.SqliCommand).(*model.SqliDescribe)
+	field := describe.Fields
 	err = ctx.SetMetaData("Idnumber", int16(describe.StatementID))
 	var fieldsname [1024]string
-	for i := 0; i < len(describe.Fields); i++ {
-		fieldsname[i] = describe.Fields[i].Name
+	for i := 0; i < len(field); i++ {
+		fieldsname[i] = field[i].Name
 	}
 	err = ctx.SetMetaData("Fieldsname", fieldsname)
-
-	//done
-	buf, err = b.(model.SqliTransmission)[1].Pack()
-	if err != nil {
-		return err
-	}
-	reader = bytes.NewReader(buf[2:])
-	done := &model.SqliDone{}
-	err = done.Unpack(reader)
-	if err != nil {
-		return err
-	}
-
-	//cost
-	buf, err = b.(model.SqliTransmission)[2].Pack()
-	if err != nil {
-		return err
-	}
-	reader = bytes.NewReader(buf[2:])
-	cost := &model.SqliCost{}
-	err = cost.Unpack(reader)
-	if err != nil {
-		return err
-	}
-
-	//eot
-	buf, err = b.(model.SqliTransmission)[3].Pack()
 
 	//TODO: send Sqli
 	id := &model.SqliID{
@@ -181,19 +147,7 @@ func (h *cidescribeHandler) Handle(filter *QueryFilter, ctx services.Context) er
 		return fmt.Errorf("unknown context type: %T", ctx)
 	}
 	groupcount, err := context.MetaData("Groupcount")
-	m, err := ctx.MetaData("sqlicidescribe")
-
-	//idescribe
-	buf, err = m.(model.SqliTransmission)[0].Pack()
-	if err != nil {
-		return err
-	}
-	reader := bytes.NewReader(buf[2:])
-	idescribe := &model.SqliIdescribe{}
-	err = idescribe.Unpack(reader)
-	if err != nil {
-		return err
-	}
+	_, err = ctx.MetaData("sqlicidescribe")
 
 	//TODO: send Sqli
 	b, err := context.MetaData("Idnumber")
@@ -281,52 +235,9 @@ func (h *executeHandler) Handle(filter *QueryFilter, ctx services.Context) error
 	if !ok {
 		return fmt.Errorf("unknown context type: %T", ctx)
 	}
-	groupcount, err := context.MetaData("Groupcount")
 	ServerToClient("sqli", ctx, "sqliexecute")
 	buf := make([]byte, 1024)
-	m, err := ctx.MetaData("sqliexecute")
-	for j := 0; j < len(m.(model.SqliTransmission))-1; j++ {
-		for i := 0; i < groupcount.(int); i++ {
-			//insertdone
-			buf, err = m.(model.SqliTransmission)[0].Pack()
-			if err != nil {
-				return err
-			}
-			reader := bytes.NewReader(buf[2:])
-			insertdone := &model.SqliInsertDone{}
-			err = insertdone.Unpack(reader)
-			if err != nil {
-				return err
-			}
-			j++
-
-			//done
-			buf, err = m.(model.SqliTransmission)[1].Pack()
-			if err != nil {
-				return err
-			}
-			reader = bytes.NewReader(buf[2:])
-			done := &model.SqliDone{}
-			err = done.Unpack(reader)
-			if err != nil {
-				return err
-			}
-			j++
-
-			//cost
-			buf, err = m.(model.SqliTransmission)[2].Pack()
-			if err != nil {
-				return err
-			}
-			reader = bytes.NewReader(buf[2:])
-			cost := &model.SqliCost{}
-			err = cost.Unpack(reader)
-			if err != nil {
-				return err
-			}
-			j++
-		}
-	}
+	_, err := ctx.MetaData("sqliexecute")
 
 	//TODO: send Sqli
 	b, err := context.MetaData("Idnumber")
@@ -409,16 +320,9 @@ func (h *cidescribeSelectHandler) Handle(filter *QueryFilter, ctx services.Conte
 	if !ok {
 		return fmt.Errorf("unknown context type: %T", ctx)
 	}
-	buf := make([]byte, 1024)
 	m, err := ctx.MetaData("sqlicidescribeSelect")
 	//idescribe
-	buf, err = m.(model.SqliTransmission)[0].Pack()
-	if err != nil {
-		return err
-	}
-	reader := bytes.NewReader(buf[2:])
-	idescribe := &model.SqliIdescribe{}
-	err = idescribe.Unpack(reader)
+	idescribe := m.(model.SqliTransmission)[0].(model.SqliCommand).(*model.SqliIdescribe)
 	if err != nil {
 		return err
 	}
@@ -486,6 +390,7 @@ func (h *cidescribeSelectHandler) Handle(filter *QueryFilter, ctx services.Conte
 	} else {
 		transmission = []model.SqliCommand{id, curname, open, eot}
 	}
+	var buf []byte
 	buf, err = transmission.Pack()
 	if err != nil {
 		return err
@@ -557,48 +462,14 @@ func (h *nfetchdoneHandler) Handle(filter *QueryFilter, ctx services.Context) er
 		return fmt.Errorf("unknown context type: %T", ctx)
 	}
 	n, err := ctx.MetaData("sqlinfetchdone")
-	buf := make([]byte, 1024)
 	err = ctx.SetMetaData("TupleNumber", len(n.(model.SqliTransmission))-3)
-
 	//tuple
-	var tuple [1024]model.SqliTuple
+	var tuple [1024]*model.SqliTuple
 	t, err := context.MetaData("TupleNumber")
 	for i := 0; i < t.(int); i++ {
-		buf, err = n.(model.SqliTransmission)[i].Pack()
-		if err != nil {
-			return err
-		}
-		reader := bytes.NewReader(buf)
-		err = tuple[i].Unpack(reader)
-		if err != nil {
-			return err
-		}
+		tuple[i] = n.(model.SqliTransmission)[i].(model.SqliCommand).(*model.SqliTuple)
 	}
 	err = ctx.SetMetaData("Tuple", tuple)
-
-	//done
-	buf, err = n.(model.SqliTransmission)[t.(int)].Pack()
-	if err != nil {
-		return err
-	}
-	reader := bytes.NewReader(buf[2:])
-	done := &model.SqliDone{}
-	err = done.Unpack(reader)
-	if err != nil {
-		return err
-	}
-
-	//cost
-	buf, err = n.(model.SqliTransmission)[t.(int)+1].Pack()
-	if err != nil {
-		return err
-	}
-	reader = bytes.NewReader(buf[2:])
-	cost := &model.SqliCost{}
-	err = cost.Unpack(reader)
-	if err != nil {
-		return err
-	}
 
 	//TODO: send pg
 	buff := (&pgproto3.ParseComplete{}).Encode(nil)
@@ -652,31 +523,20 @@ func (h *parseHandler) HandleHandle1(filter *QueryFilter, ctx services.Context) 
 	if !ok {
 		return fmt.Errorf("unknown context type: %T", ctx)
 	}
-	buf := make([]byte, 2048)
 	b, err := ctx.MetaData("parse")
 	if err != nil {
 		return err
 	}
 	//parse
-	buf = b.(model.PgTransmission)[0].Encode(nil)
-	parse := &pgproto3.Parse{}
-	err = parse.Decode(buf[5:])
-	if err != nil {
-		return err
-	}
+	parse := b.(model.PgTransmission)[0].(model.PgCommand).(*pgproto3.Parse)
 	sql := parse.Query
 	sql = strings.ReplaceAll(sql, "$1", "?")
-	err = ctx.SetMetaData("Condition", sql[:6])
-	err = ctx.SetMetaData("Bindtype", parse.ParameterOIDs)
+	ctx.SetMetaData("Condition", sql[:6])
+	ctx.SetMetaData("Bindtype", parse.ParameterOIDs)
 	paranumber := len(parse.ParameterOIDs)
 
 	//bind
-	buf = b.(model.PgTransmission)[1].Encode(nil)
-	bind := &pgproto3.Bind{}
-	err = bind.Decode(buf[5:])
-	if err != nil {
-		return err
-	}
+	bind := b.(model.PgTransmission)[1].(model.PgCommand).(*pgproto3.Bind)
 	err = ctx.SetMetaData("Bindcondition", len(bind.ParameterFormatCodes))
 	binddata := bind.Parameters
 	a, err := context.MetaData("Bindtype")
@@ -699,30 +559,6 @@ func (h *parseHandler) HandleHandle1(filter *QueryFilter, ctx services.Context) 
 		return err
 	}
 	err = ctx.SetMetaData("Datebindchar", datebindchar)
-	if err != nil {
-		return err
-	}
-
-	//describe
-	buf = b.(model.PgTransmission)[2].Encode(nil)
-	describe := &pgproto3.Describe{}
-	err = describe.Decode(buf[5:])
-	if err != nil {
-		return err
-	}
-
-	//execute
-	buf = b.(model.PgTransmission)[3].Encode(nil)
-	execute := &pgproto3.Execute{}
-	err = execute.Decode(buf[5:])
-	if err != nil {
-		return err
-	}
-
-	//sync
-	buf = b.(model.PgTransmission)[4].Encode(nil)
-	sync := &pgproto3.Sync{}
-	err = sync.Decode(buf[5:])
 	if err != nil {
 		return err
 	}
@@ -755,34 +591,18 @@ func (h *parseHandler) HandleHandle2(filter *QueryFilter, ctx services.Context) 
 	if !ok {
 		return fmt.Errorf("unknown context type: %T", ctx)
 	}
-	buf := make([]byte, 2048)
 	b, err := ctx.MetaData("parse")
 	if err != nil {
 		return err
 	}
 
 	//parse
-	buf = b.(model.PgTransmission)[0].Encode(nil)
-	parse := &pgproto3.Parse{}
-	err = parse.Decode(buf[5:])
-	if err != nil {
-		return err
-	}
+	parse := b.(model.PgTransmission)[0].(model.PgCommand).(*pgproto3.Parse)
 	sql := parse.Query
 	sql = strings.ReplaceAll(sql, "$1", "?")
 	err = ctx.SetMetaData("Condition", sql[:6])
 	err = ctx.SetMetaData("Bindtype", parse.ParameterOIDs)
 	paranumber := len(parse.ParameterOIDs)
-
-	//describe
-	buf = b.(model.PgTransmission)[1].Encode(nil)
-	describe := &pgproto3.Describe{}
-	err = describe.Decode(buf[5:])
-	if err != nil {
-		return err
-	}
-	_ = describe.ObjectType
-	_ = describe.Name
 
 	context.requests = b.(model.PgTransmission)
 
@@ -808,49 +628,18 @@ func (h *parseHandler) HandleHandle2(filter *QueryFilter, ctx services.Context) 
 
 func (h *prepareDescribeHandler) Handle(filter *QueryFilter, ctx services.Context) error {
 	ServerToClient("sqli", ctx, "sqliprepareDescribe")
-	buf := make([]byte, 1024)
 	b, err := ctx.MetaData("sqliprepareDescribe")
+	if err != nil {
+		return err
+	}
 	//describe
-	buf, err = b.(model.SqliTransmission)[0].Pack()
-	if err != nil {
-		return err
-	}
-	reader := bytes.NewReader(buf[2:])
-	describe := &model.SqliDescribe{}
-	err = describe.Unpack(reader)
-	if err != nil {
-		return err
-	}
+	describe := b.(model.SqliTransmission)[0].(model.SqliCommand).(*model.SqliDescribe)
 	err = ctx.SetMetaData("Idnumber", int16(describe.StatementID))
 	var fieldsname [1024]string
 	for i := 0; i < len(describe.Fields); i++ {
 		fieldsname[i] = describe.Fields[i].Name
 	}
 	err = ctx.SetMetaData("Fieldsname", fieldsname)
-
-	//done
-	buf, err = b.(model.SqliTransmission)[1].Pack()
-	if err != nil {
-		return err
-	}
-	reader = bytes.NewReader(buf[2:])
-	done := &model.SqliDone{}
-	err = done.Unpack(reader)
-	if err != nil {
-		return err
-	}
-
-	//cost
-	buf, err = b.(model.SqliTransmission)[2].Pack()
-	if err != nil {
-		return err
-	}
-	reader = bytes.NewReader(buf[2:])
-	cost := &model.SqliCost{}
-	err = cost.Unpack(reader)
-	if err != nil {
-		return err
-	}
 
 	buff := (&pgproto3.ParseComplete{}).Encode(nil)
 	buff = (&pgproto3.ParameterDescription{
@@ -872,7 +661,6 @@ func (h *cidesbatchHandler) Handle(filter *QueryFilter, ctx services.Context) er
 		return fmt.Errorf("unknown context type: %T", ctx)
 	}
 	ClientToServre("pg", ctx, "cidesbatch")
-	buf := make([]byte, 1024)
 	b, err := ctx.MetaData("cidesbatch")
 	if err != nil {
 		return err
@@ -886,12 +674,7 @@ func (h *cidesbatchHandler) Handle(filter *QueryFilter, ctx services.Context) er
 	for j := 0; j < len(b.(model.PgTransmission))-1; j++ {
 		for i := 0; i < groupcount; i++ {
 			//bind
-			buf = b.(model.PgTransmission)[j].Encode(nil)
-			pgbind := &pgproto3.Bind{}
-			err = pgbind.Decode(buf[5:])
-			if err != nil {
-				return err
-			}
+			pgbind := b.(model.PgTransmission)[j].(model.PgCommand).(*pgproto3.Bind)
 			err = ctx.SetMetaData("Bindcondition", len(pgbind.ParameterFormatCodes))
 			binddata := pgbind.Parameters
 			a, err := context.MetaData("Bindtype")
@@ -917,25 +700,7 @@ func (h *cidesbatchHandler) Handle(filter *QueryFilter, ctx services.Context) er
 			if err != nil {
 				return err
 			}
-			j++
-
-			//describe
-			buf = b.(model.PgTransmission)[j].Encode(nil)
-			describe := &pgproto3.Describe{}
-			err = describe.Decode(buf[5:])
-			if err != nil {
-				return err
-			}
-			j++
-
-			//execute
-			buf = b.(model.PgTransmission)[j].Encode(nil)
-			pgexecute := &pgproto3.Execute{}
-			err = pgexecute.Decode(buf[5:])
-			if err != nil {
-				return err
-			}
-			j++
+			j += 3
 		}
 	}
 
