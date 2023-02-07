@@ -3,6 +3,7 @@ package bridge
 import (
 	"bytes"
 	"fmt"
+	//"net"
 
 	"github.com/jackc/pgproto3"
 	"github.com/wangxuesong/tcpshadow/model"
@@ -52,30 +53,7 @@ func (c *ConnectFilter) SetHandler(handler ConnectHandler) {
 }
 
 func (h *startMessageHandler) Handle(filter *ConnectFilter, ctx services.Context) error {
-	if ctx.Data().Forward != model.ClientToServer {
-		return fmt.Errorf(" The error direction of the message is %T", model.ServerToClient)
-	}
-
-	buff := bytes.NewBuffer(ctx.Data().Buffer)
-	context, ok := ctx.(*Context)
-	if !ok {
-		return fmt.Errorf("unknown context type: %T", ctx)
-	}
-
-	backend, err := pgproto3.NewBackend(pgproto3.NewChunkReader(buff), nil)
-	if err != nil {
-		return fmt.Errorf("failed to generate NewBackend, err: %T", err)
-	}
-
-	msg, err := backend.ReceiveStartupMessage()
-	if err != nil {
-		return fmt.Errorf("failed to receive StartupMessage, err: %T", err)
-	}
-	_ = msg.Parameters["user"]
-	_ = msg.Parameters["password"]
-
-	context.requests = []model.PgCommand{msg}
-
+	ClientToServre("start", ctx, "stratupmessage") //收
 	authrequest := &model.AuthRequest{
 		Noname1:    1,
 		Noname2:    60,
@@ -153,27 +131,14 @@ func (h *startMessageHandler) Handle(filter *ConnectFilter, ctx services.Context
 	if err != nil {
 		return fmt.Errorf("failed to pack AuthRequest, err: %T", err)
 	}
-	ctx.Data().Buffer = pack
-	context.backend.Write(ctx.Data().Buffer)
+	SendPackage("backend", pack, ctx) //发
 	ctx.SetMetaData("ConnectStage", "ConnectProtocol")
 	filter.SetHandler(&authResponseHandler{})
 	return nil
 }
 
 func (h *authResponseHandler) Handle(filter *ConnectFilter, ctx services.Context) error {
-	if ctx.Data().Forward != model.ServerToClient {
-		return fmt.Errorf(" The error direction of the message is %T", model.ClientToServer)
-	}
-
-	context, ok := ctx.(*Context)
-	if !ok {
-		return fmt.Errorf("unknown context type: %T", ctx)
-	}
-
-	reader := bytes.NewReader(ctx.Data().Buffer)
-	authreponse := &model.AuthResponse{}
-	authreponse.Unpack(reader)
-
+	ServerToClient("authresponse", ctx, "authresponse")
 	//TODO:send protocols
 	protocol := &model.SqliProtocols{
 		Protocol: []byte{0xff, 0xfc, 0x7f, 0xfc, 0x3c, 0x8c, 0xaa, 0x97, 0x10},
@@ -185,30 +150,14 @@ func (h *authResponseHandler) Handle(filter *ConnectFilter, ctx services.Context
 	if err != nil {
 		return fmt.Errorf("failed to pack SqliProtocols transmission packages, err: %T", err)
 	}
-	ctx.Data().Buffer = buf
-	context.backend.Write(ctx.Data().Buffer)
+	SendPackage("backend", buf, ctx)
 	ctx.SetMetaData("ConnectStage", "ConnectInfo")
 	filter.SetHandler(&protocolHandler{})
 	return nil
 }
 
 func (h *protocolHandler) Handle(filter *ConnectFilter, ctx services.Context) error {
-	if ctx.Data().Forward != model.ServerToClient {
-		return fmt.Errorf(" The error direction of the message is %T", model.ClientToServer)
-	}
-
-	context, ok := ctx.(*Context)
-	if !ok {
-		return fmt.Errorf("unknown context type: %T", ctx)
-	}
-
-	reader := bytes.NewReader(ctx.Data().Buffer)
-	//TODO: receive SqliProtocols
-	_, err := model.UnpackSqliTransmission(reader)
-	if err != nil {
-		return fmt.Errorf("failed to unpack SqliProtocols response packages, err: %T", err)
-	}
-
+	ServerToClient("sqli", ctx, "sqliinfo")
 	//TODO: send SqliInfo
 	info := &model.SqliInfo{
 		MessageType: 6,
@@ -229,33 +178,14 @@ func (h *protocolHandler) Handle(filter *ConnectFilter, ctx services.Context) er
 	if err != nil {
 		return fmt.Errorf("failed to pack SqliInfo transmission packages, err: %T", err)
 	}
-	if err != nil {
-		return err
-	}
-	ctx.Data().Buffer = buf
-	context.backend.Write(ctx.Data().Buffer)
+	SendPackage("backend", buf, ctx)
 	ctx.SetMetaData("ConnectStage", "ConnectDbOpen")
 	filter.SetHandler(&infoHandler{})
 	return nil
 }
 
 func (h *infoHandler) Handle(filter *ConnectFilter, ctx services.Context) error {
-	if ctx.Data().Forward != model.ServerToClient {
-		return fmt.Errorf(" The error direction of the message is %T", model.ClientToServer)
-	}
-
-	context, ok := ctx.(*Context)
-	if !ok {
-		return fmt.Errorf("unknown context type: %T", ctx)
-	}
-
-	reader := bytes.NewReader(ctx.Data().Buffer)
-	//TODO: receive SqliEot
-	_, err := model.UnpackSqliTransmission(reader)
-	if err != nil {
-		return fmt.Errorf("failed to unpack SqliInfo response packages, err: %T", err)
-	}
-
+	ServerToClient("sqli", ctx, "sqlieot")
 	//TODO: send SqliDBOpen
 	deopen := &model.SqliDBOpen{
 		DBName: "dfe",
@@ -268,30 +198,14 @@ func (h *infoHandler) Handle(filter *ConnectFilter, ctx services.Context) error 
 	if err != nil {
 		return fmt.Errorf("failed to pack SqliDBOpen transmission packages, err: %T", err)
 	}
-	ctx.Data().Buffer = buf
-	context.backend.Write(ctx.Data().Buffer)
+	SendPackage("backend", buf, ctx)
 	ctx.SetMetaData("ConnectStage", "ConnectDone")
 	filter.SetHandler(&dbOpenHandler{})
 	return nil
 }
 
 func (h *dbOpenHandler) Handle(filter *ConnectFilter, ctx services.Context) error {
-	if ctx.Data().Forward != model.ServerToClient {
-		return fmt.Errorf(" The error direction of the message is %T", model.ClientToServer)
-	}
-
-	context, ok := ctx.(*Context)
-	if !ok {
-		return fmt.Errorf("unknown context type: %T", ctx)
-	}
-
-	reader := bytes.NewReader(ctx.Data().Buffer)
-	//TODO: receive SqliDone,SqliCost,SqliEot
-	_, err := model.UnpackSqliTransmission(reader)
-	if err != nil {
-		return fmt.Errorf("failed to unpack SqliDBOpen response packages, err: %T", err)
-	}
-
+	ServerToClient("sqli", ctx, "sqlidone")
 	// TODO:send Authentication to front
 	auth := &pgproto3.Authentication{
 		Type:               pgproto3.AuthTypeOk,
@@ -307,51 +221,29 @@ func (h *dbOpenHandler) Handle(filter *ConnectFilter, ctx services.Context) erro
 	ready := &pgproto3.ReadyForQuery{
 		TxStatus: 73,
 	}
-
+	context, ok := ctx.(*Context)
+	if !ok {
+		return fmt.Errorf("unknown context type: %T", ctx)
+	}
 	context.responses = []model.PgCommand{auth, status, key, ready}
 	buf, err := context.responses.Pack()
 	if err != nil {
 		return err
 	}
-
-	_, err = context.front.Write(buf)
-	if err != nil {
-		return fmt.Errorf("failed to pack PgAuthOK transmission packages, err: %T", err)
-	}
-	//ctx.SetMetaData("ConnectStage", EndStage)
+	SendPackage("front", buf, ctx)
 	ctx.SetMetaData("ConnectStage", "ConnectSet")
 	filter.SetHandler(&connectSet{})
 	return nil
 }
 
 func (h *connectSet) Handle(filter *ConnectFilter, ctx services.Context) error {
-	if ctx.Data().Forward != model.ClientToServer {
-		return fmt.Errorf(" The error direction of the message is %T", model.ServerToClient)
-	}
-
-	context, ok := ctx.(*Context)
-	if !ok {
-		return fmt.Errorf("unknown context type: %T", ctx)
-	}
-
-	parser := model.NewPgClientParser()
-	_, err := parser.Append(ctx.Data().Buffer)
-	if err != nil {
-		return fmt.Errorf("failed to append parser buffer, err: %T", err)
-	}
-	msg, err := parser.ParseMessage()
-	if err != nil {
-		return fmt.Errorf("failed to unpack ParseMessage, err: %T", err)
-	}
-
+	ClientToServre("pg", ctx, "pbes")
 	buf := make([]byte, 2048)
 	//parse
-	buf = msg[0].Encode(nil)
+	b, err := ctx.MetaData("pbes")
+	buf = b.(model.PgTransmission)[0].Encode(nil)
 	parse := &pgproto3.Parse{}
-	err = parse.Decode(buf[5:])
-	if err != nil {
-		return fmt.Errorf("failed to decode Parse Message, err: %T", err)
-	}
+	parse.Decode(buf[5:])
 	query := parse.Query
 	tag := query[:3]
 	set := query[4:15]
@@ -360,6 +252,10 @@ func (h *connectSet) Handle(filter *ConnectFilter, ctx services.Context) error {
 	bindcomplete := &pgproto3.BindComplete{}
 	commandcomplete := &pgproto3.CommandComplete{CommandTag: tag}
 	readyforquery := &pgproto3.ReadyForQuery{TxStatus: 'T'}
+	context, ok := ctx.(*Context)
+	if !ok {
+		return fmt.Errorf("unknown context type: %T", ctx)
+	}
 	context.responses = []model.PgCommand{parsecomplete, bindcomplete, commandcomplete, readyforquery}
 	buf, err = context.responses.Pack()
 	if err != nil {
@@ -391,6 +287,89 @@ func (h *connectSet) Handle(filter *ConnectFilter, ctx services.Context) error {
 	}
 	if ok && stage == EndStage {
 		context.state = QueryState
+	}
+	return nil
+}
+
+func ClientToServre(name string, ctx services.Context, tag string) error {
+	if ctx.Data().Forward != model.ClientToServer {
+		return fmt.Errorf(" The error direction of the message is %T", model.ServerToClient)
+	}
+	buff := bytes.NewBuffer(ctx.Data().Buffer)
+	context, ok := ctx.(*Context)
+	if !ok {
+		return fmt.Errorf("unknown context type: %T", ctx)
+	}
+
+	switch name {
+	case "start":
+		backend, err := pgproto3.NewBackend(pgproto3.NewChunkReader(buff), nil)
+		if err != nil {
+			return fmt.Errorf("failed to generate NewBackend, err: %T", err)
+		}
+		msg, err := backend.ReceiveStartupMessage()
+		if err != nil {
+			return fmt.Errorf("failed to receive StartupMessage, err: %T", err)
+		}
+		err = context.SetMetaData(tag, msg)
+		context.requests = []model.PgCommand{msg}
+	case "pg":
+		parser := model.NewPgClientParser()
+		_, err := parser.Append(ctx.Data().Buffer)
+		if err != nil {
+			return fmt.Errorf("failed to append parser buffer, err: %T", err)
+		}
+		msg, err := parser.ParseMessage()
+		if err != nil {
+			return fmt.Errorf("failed to unpack ParseMessage, err: %T", err)
+		}
+		err = context.SetMetaData(tag, msg)
+	}
+	return nil
+}
+
+func ServerToClient(name string, ctx services.Context, tag string) error {
+	if ctx.Data().Forward != model.ServerToClient {
+		return fmt.Errorf(" The error direction of the message is %T", model.ClientToServer)
+	}
+	reader := bytes.NewReader(ctx.Data().Buffer)
+	context, ok := ctx.(*Context)
+	if !ok {
+		return fmt.Errorf("unknown context type: %T", ctx)
+	}
+	switch name {
+	case "authresponse":
+		authreponse := &model.AuthResponse{}
+		authreponse.Unpack(reader)
+	case "authrequest":
+		authrequest := &model.AuthRequest{}
+		authrequest.Unpack(reader)
+	case "sqli":
+		mges, err := model.UnpackSqliTransmission(reader)
+		if err != nil {
+			return fmt.Errorf("failed to unpack SqliInfo response packages, err: %T", err)
+		}
+		context.SetMetaData(tag, mges)
+	default:
+		return nil
+	}
+
+	return nil
+}
+
+func SendPackage(dir string, pack []byte, ctx services.Context) error {
+	context, ok := ctx.(*Context)
+	if !ok {
+		return fmt.Errorf("unknown context type: %T", ctx)
+	}
+	ctx.Data().Buffer = pack
+	switch dir {
+	case "backend":
+		context.backend.Write(ctx.Data().Buffer)
+	case "front":
+		context.front.Write(ctx.Data().Buffer)
+	default:
+		return nil
 	}
 	return nil
 }
