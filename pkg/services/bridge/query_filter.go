@@ -67,7 +67,24 @@ func (c *QueryFilter) SetHandler(handler QueryHandler) {
 }
 
 func (h *parseHandler) Handle(filter *QueryFilter, ctx services.Context) error {
-	ClientToServre("pg", ctx, "parse")
+	if ctx.Data().Forward != model.ClientToServer {
+		return fmt.Errorf(" The error direction of the message is %T", model.ServerToClient)
+	}
+	//buff := bytes.NewBuffer(ctx.Data().Buffer)
+	context, ok := ctx.(*Context)
+	if !ok {
+		return fmt.Errorf("unknown context type: %T", ctx)
+	}
+	parser := model.NewPgClientParser()
+	_, err := parser.Append(ctx.Data().Buffer)
+	if err != nil {
+		return fmt.Errorf("failed to append parser buffer, err: %T", err)
+	}
+	msg, err := parser.ParseMessage()
+	if err != nil {
+		return fmt.Errorf("failed to unpack ParseMessage, err: %T", err)
+	}
+	err = context.SetMetaData("parse", msg)
 	buf := make([]byte, 2048)
 	b, err := ctx.MetaData("parse")
 	if err != nil {
@@ -89,7 +106,20 @@ func (h *parseHandler) Handle(filter *QueryFilter, ctx services.Context) error {
 }
 
 func (h *prepareHandler) Handle(filter *QueryFilter, ctx services.Context) error {
-	ServerToClient("sqli", ctx, "sqliprepare")
+	if ctx.Data().Forward != model.ServerToClient {
+		return fmt.Errorf(" The error direction of the message is %T", model.ClientToServer)
+	}
+	reader := bytes.NewReader(ctx.Data().Buffer)
+	context, ok := ctx.(*Context)
+	if !ok {
+		return fmt.Errorf("unknown context type: %T", ctx)
+	}
+	mges, err := model.UnpackSqliTransmission(reader)
+	if err != nil {
+		return fmt.Errorf("failed to unpack SqliInfo response packages, err: %T", err)
+	}
+	context.SetMetaData("sqliprepare", mges)
+
 	//TODO: receive Sqli
 	buf := make([]byte, 1024)
 	b, err := ctx.MetaData("sqliprepare")
@@ -116,13 +146,10 @@ func (h *prepareHandler) Handle(filter *QueryFilter, ctx services.Context) error
 	if err != nil {
 		return err
 	}
-	SendPackage("backend", buf, ctx)
+	ctx.Data().Buffer = buf
+	context.backend.Write(ctx.Data().Buffer)
 
-	context, ok := ctx.(*Context)
-	if !ok {
-		return fmt.Errorf("unknown context type: %T", ctx)
-	}
-	v, err := context.MetaData("Condition")
+	v, err := ctx.MetaData("Condition")
 	if v.(string) == "select" || v.(string) == "SELECT" {
 		err = ctx.SetMetaData("QueryStage", "QuerySelectIDescribeDone")
 		filter.SetHandler(&cidescribeSelectHandler{})
@@ -140,26 +167,34 @@ func (h *prepareHandler) Handle(filter *QueryFilter, ctx services.Context) error
 }
 
 func (h *cidescribeHandler) Handle(filter *QueryFilter, ctx services.Context) error {
-	ServerToClient("sqli", ctx, "sqlicidescribe")
-	buf := make([]byte, 1024)
+	if ctx.Data().Forward != model.ServerToClient {
+		return fmt.Errorf(" The error direction of the message is %T", model.ClientToServer)
+	}
+	reader := bytes.NewReader(ctx.Data().Buffer)
 	context, ok := ctx.(*Context)
 	if !ok {
 		return fmt.Errorf("unknown context type: %T", ctx)
 	}
-	groupcount, err := context.MetaData("Groupcount")
+	mges, err := model.UnpackSqliTransmission(reader)
+	if err != nil {
+		return fmt.Errorf("failed to unpack SqliInfo response packages, err: %T", err)
+	}
+	context.SetMetaData("sqlicidescribe", mges)
+	buf := make([]byte, 1024)
+	groupcount, err := ctx.MetaData("Groupcount")
 	_, err = ctx.MetaData("sqlicidescribe")
 
 	//TODO: send Sqli
-	b, err := context.MetaData("Idnumber")
+	b, err := ctx.MetaData("Idnumber")
 	id := &model.SqliID{
 		ID: b.(int16),
 	}
 	bind := &model.SqliBind{
 		Columns: []model.BindColumn{},
 	}
-	v, err := context.MetaData("Bindcondition")
+	v, err := ctx.MetaData("Bindcondition")
 	if v != 0 {
-		a, err := context.MetaData("Bindtype")
+		a, err := ctx.MetaData("Bindtype")
 		if err != nil {
 			return err
 		}
@@ -172,7 +207,7 @@ func (h *cidescribeHandler) Handle(filter *QueryFilter, ctx services.Context) er
 			}
 			switch c {
 			case 23:
-				t, err := context.MetaData("Datebindint")
+				t, err := ctx.MetaData("Datebindint")
 				if err != nil {
 					return err
 				}
@@ -185,7 +220,7 @@ func (h *cidescribeHandler) Handle(filter *QueryFilter, ctx services.Context) er
 				}
 				bind.Columns = []model.BindColumn{*bindint}
 			case 1043:
-				p, err := context.MetaData("Datebindchar")
+				p, err := ctx.MetaData("Datebindchar")
 				if err != nil {
 					return err
 				}
@@ -221,7 +256,8 @@ func (h *cidescribeHandler) Handle(filter *QueryFilter, ctx services.Context) er
 	if err != nil {
 		return err
 	}
-	SendPackage("backend", buf, ctx)
+	ctx.Data().Buffer = buf
+	context.backend.Write(ctx.Data().Buffer)
 	err = ctx.SetMetaData("QueryStage", "QueryExecuteDone")
 	filter.SetHandler(&executeHandler{})
 	if err != nil {
@@ -231,16 +267,23 @@ func (h *cidescribeHandler) Handle(filter *QueryFilter, ctx services.Context) er
 }
 
 func (h *executeHandler) Handle(filter *QueryFilter, ctx services.Context) error {
+	if ctx.Data().Forward != model.ServerToClient {
+		return fmt.Errorf(" The error direction of the message is %T", model.ClientToServer)
+	}
+	reader := bytes.NewReader(ctx.Data().Buffer)
 	context, ok := ctx.(*Context)
 	if !ok {
 		return fmt.Errorf("unknown context type: %T", ctx)
 	}
-	ServerToClient("sqli", ctx, "sqliexecute")
+	mges, err := model.UnpackSqliTransmission(reader)
+	if err != nil {
+		return fmt.Errorf("failed to unpack SqliInfo response packages, err: %T", err)
+	}
+	context.SetMetaData("sqliexecute", mges)
 	buf := make([]byte, 1024)
-	_, err := ctx.MetaData("sqliexecute")
 
 	//TODO: send Sqli
-	b, err := context.MetaData("Idnumber")
+	b, err := ctx.MetaData("Idnumber")
 	id := &model.SqliID{
 		ID: b.(int16),
 	}
@@ -252,7 +295,8 @@ func (h *executeHandler) Handle(filter *QueryFilter, ctx services.Context) error
 	if err != nil {
 		return err
 	}
-	SendPackage("backend", buf, ctx)
+	ctx.Data().Buffer = buf
+	context.backend.Write(ctx.Data().Buffer)
 	err = ctx.SetMetaData("QueryStage", "QueryRelease")
 	if err != nil {
 		return err
@@ -262,11 +306,20 @@ func (h *executeHandler) Handle(filter *QueryFilter, ctx services.Context) error
 }
 
 func (h *releaseHandler) Handle(filter *QueryFilter, ctx services.Context) error {
-	ServerToClient("sqli", ctx, "sqlirelease")
+	if ctx.Data().Forward != model.ServerToClient {
+		return fmt.Errorf(" The error direction of the message is %T", model.ClientToServer)
+	}
+	reader := bytes.NewReader(ctx.Data().Buffer)
 	context, ok := ctx.(*Context)
 	if !ok {
 		return fmt.Errorf("unknown context type: %T", ctx)
 	}
+	mges, err := model.UnpackSqliTransmission(reader)
+	if err != nil {
+		return fmt.Errorf("failed to unpack SqliInfo response packages, err: %T", err)
+	}
+	context.SetMetaData("sqlirelease", mges)
+
 	groupcount, err := context.MetaData("Groupcount")
 	if err != nil {
 		return err
@@ -295,7 +348,8 @@ func (h *releaseHandler) Handle(filter *QueryFilter, ctx services.Context) error
 		return err
 	}
 
-	SendPackage("front", buff, ctx)
+	ctx.Data().Buffer = buff
+	context.front.Write(ctx.Data().Buffer)
 
 	err = ctx.SetMetaData("QueryStage", EndStage)
 	if err != nil {
@@ -315,11 +369,19 @@ func (h *releaseHandler) Handle(filter *QueryFilter, ctx services.Context) error
 }
 
 func (h *cidescribeSelectHandler) Handle(filter *QueryFilter, ctx services.Context) error {
-	ServerToClient("sqli", ctx, "sqlicidescribeSelect")
+	if ctx.Data().Forward != model.ServerToClient {
+		return fmt.Errorf(" The error direction of the message is %T", model.ClientToServer)
+	}
+	reader := bytes.NewReader(ctx.Data().Buffer)
 	context, ok := ctx.(*Context)
 	if !ok {
 		return fmt.Errorf("unknown context type: %T", ctx)
 	}
+	mges, err := model.UnpackSqliTransmission(reader)
+	if err != nil {
+		return fmt.Errorf("failed to unpack SqliInfo response packages, err: %T", err)
+	}
+	context.SetMetaData("sqlicidescribeSelect", mges)
 	m, err := ctx.MetaData("sqlicidescribeSelect")
 	//idescribe
 	idescribe := m.(model.SqliTransmission)[0].(model.SqliCommand).(*model.SqliIdescribe)
@@ -329,7 +391,7 @@ func (h *cidescribeSelectHandler) Handle(filter *QueryFilter, ctx services.Conte
 	err = ctx.SetMetaData("Idesfields", idescribe.Fields)
 
 	//TODO: send Sqli
-	b, err := context.MetaData("Idnumber")
+	b, err := ctx.MetaData("Idnumber")
 	id := &model.SqliID{
 		ID: b.(int16),
 	}
@@ -339,9 +401,9 @@ func (h *cidescribeSelectHandler) Handle(filter *QueryFilter, ctx services.Conte
 	bind := &model.SqliBind{
 		Columns: []model.BindColumn{},
 	}
-	v, err := context.MetaData("Bindcondition")
+	v, err := ctx.MetaData("Bindcondition")
 	if v != 0 {
-		a, err := context.MetaData("Bindtype")
+		a, err := ctx.MetaData("Bindtype")
 		if err != nil {
 			return err
 		}
@@ -354,7 +416,7 @@ func (h *cidescribeSelectHandler) Handle(filter *QueryFilter, ctx services.Conte
 			}
 			switch c {
 			case 23:
-				t, err := context.MetaData("Datebindint")
+				t, err := ctx.MetaData("Datebindint")
 				if err != nil {
 					return err
 				}
@@ -367,7 +429,7 @@ func (h *cidescribeSelectHandler) Handle(filter *QueryFilter, ctx services.Conte
 				}
 				bind.Columns = []model.BindColumn{*bindint}
 			case 1043:
-				p, err := context.MetaData("Datebindchar")
+				p, err := ctx.MetaData("Datebindchar")
 				if err != nil {
 					return err
 				}
@@ -395,7 +457,8 @@ func (h *cidescribeSelectHandler) Handle(filter *QueryFilter, ctx services.Conte
 	if err != nil {
 		return err
 	}
-	SendPackage("backend", buf, ctx)
+	ctx.Data().Buffer = buf
+	context.backend.Write(ctx.Data().Buffer)
 	err = ctx.SetMetaData("QueryStage", "QueryOpen")
 	if err != nil {
 		return err
@@ -405,14 +468,22 @@ func (h *cidescribeSelectHandler) Handle(filter *QueryFilter, ctx services.Conte
 }
 
 func (h *openHandler) Handle(filter *QueryFilter, ctx services.Context) error {
-	ServerToClient("sqli", ctx, "sqliopen")
+	if ctx.Data().Forward != model.ServerToClient {
+		return fmt.Errorf(" The error direction of the message is %T", model.ClientToServer)
+	}
+	reader := bytes.NewReader(ctx.Data().Buffer)
 	context, ok := ctx.(*Context)
 	if !ok {
 		return fmt.Errorf("unknown context type: %T", ctx)
 	}
+	mges, err := model.UnpackSqliTransmission(reader)
+	if err != nil {
+		return fmt.Errorf("failed to unpack SqliInfo response packages, err: %T", err)
+	}
+	context.SetMetaData("sqliopen", mges)
 
 	//TODO: send Sqli
-	b, err := context.MetaData("Idnumber")
+	b, err := ctx.MetaData("Idnumber")
 	id := &model.SqliID{
 		ID: b.(int16),
 	}
@@ -446,7 +517,8 @@ func (h *openHandler) Handle(filter *QueryFilter, ctx services.Context) error {
 	if err != nil {
 		return err
 	}
-	SendPackage("backend", buff, ctx)
+	ctx.Data().Buffer = buff
+	context.backend.Write(ctx.Data().Buffer)
 	err = ctx.SetMetaData("QueryStage", "QueryDone")
 	if err != nil {
 		return err
@@ -456,16 +528,24 @@ func (h *openHandler) Handle(filter *QueryFilter, ctx services.Context) error {
 }
 
 func (h *nfetchdoneHandler) Handle(filter *QueryFilter, ctx services.Context) error {
-	ServerToClient("sqli", ctx, "sqlinfetchdone")
+	if ctx.Data().Forward != model.ServerToClient {
+		return fmt.Errorf(" The error direction of the message is %T", model.ClientToServer)
+	}
+	reader := bytes.NewReader(ctx.Data().Buffer)
 	context, ok := ctx.(*Context)
 	if !ok {
 		return fmt.Errorf("unknown context type: %T", ctx)
 	}
+	mges, err := model.UnpackSqliTransmission(reader)
+	if err != nil {
+		return fmt.Errorf("failed to unpack SqliInfo response packages, err: %T", err)
+	}
+	context.SetMetaData("sqlinfetchdone", mges)
 	n, err := ctx.MetaData("sqlinfetchdone")
 	err = ctx.SetMetaData("TupleNumber", len(n.(model.SqliTransmission))-3)
 	//tuple
 	var tuple [1024]*model.SqliTuple
-	t, err := context.MetaData("TupleNumber")
+	t, err := ctx.MetaData("TupleNumber")
 	for i := 0; i < t.(int); i++ {
 		tuple[i] = n.(model.SqliTransmission)[i].(model.SqliCommand).(*model.SqliTuple)
 	}
@@ -474,7 +554,7 @@ func (h *nfetchdoneHandler) Handle(filter *QueryFilter, ctx services.Context) er
 	//TODO: send pg
 	buff := (&pgproto3.ParseComplete{}).Encode(nil)
 	buff = (&pgproto3.BindComplete{}).Encode(buff)
-	m, err := context.MetaData("Fieldsname")
+	m, err := ctx.MetaData("Fieldsname")
 	buff = (&pgproto3.RowDescription{Fields: []pgproto3.FieldDescription{
 		{
 			Name:                 m.([1024]string)[0],
@@ -493,21 +573,22 @@ func (h *nfetchdoneHandler) Handle(filter *QueryFilter, ctx services.Context) er
 		data[i].Values = response
 	}
 	err = ctx.SetMetaData("Data", data)
-	p, err := context.MetaData("Data")
+	p, err := ctx.MetaData("Data")
 	row := p.([1024]pgproto3.DataRow)
 	buff = row[0].Encode(buff)
 	buff = row[1].Encode(buff)
 	buff = row[2].Encode(buff)
 	buff = (&pgproto3.CommandComplete{CommandTag: "SELECT 1"}).Encode(buff)
 	buff = (&pgproto3.ReadyForQuery{TxStatus: 'I'}).Encode(buff)
-	SendPackage("front", buff, ctx)
+	ctx.Data().Buffer = buff
+	context.front.Write(ctx.Data().Buffer)
 	err = ctx.SetMetaData("QueryStage", EndStage)
 	if err != nil {
 		return err
 	}
 	filter.SetHandler(&parseHandler{})
 
-	v, err := context.MetaData("QueryStage")
+	v, err := ctx.MetaData("QueryStage")
 	if err != nil {
 		return err
 	}
@@ -576,7 +657,8 @@ func (h *parseHandler) HandleHandle1(filter *QueryFilter, ctx services.Context) 
 	var transmission model.SqliTransmission
 	transmission = []model.SqliCommand{prepare, ndescribe, wantdone, eot}
 	buffer, err := transmission.Pack()
-	SendPackage("backend", buffer, ctx)
+	ctx.Data().Buffer = buffer
+	context.backend.Write(ctx.Data().Buffer)
 	err = ctx.SetMetaData("QueryStage", "QueryPrepareDone")
 	if err != nil {
 		return err
@@ -617,7 +699,8 @@ func (h *parseHandler) HandleHandle2(filter *QueryFilter, ctx services.Context) 
 	var transmission model.SqliTransmission
 	transmission = []model.SqliCommand{prepare, ndescribe, wantdone, eot}
 	buffer, err := transmission.Pack()
-	SendPackage("backend", buffer, ctx)
+	ctx.Data().Buffer = buffer
+	context.backend.Write(ctx.Data().Buffer)
 	err = ctx.SetMetaData("QueryStage", "QueryPrepareDone")
 	if err != nil {
 		return err
@@ -627,7 +710,19 @@ func (h *parseHandler) HandleHandle2(filter *QueryFilter, ctx services.Context) 
 }
 
 func (h *prepareDescribeHandler) Handle(filter *QueryFilter, ctx services.Context) error {
-	ServerToClient("sqli", ctx, "sqliprepareDescribe")
+	if ctx.Data().Forward != model.ServerToClient {
+		return fmt.Errorf(" The error direction of the message is %T", model.ClientToServer)
+	}
+	reader := bytes.NewReader(ctx.Data().Buffer)
+	context, ok := ctx.(*Context)
+	if !ok {
+		return fmt.Errorf("unknown context type: %T", ctx)
+	}
+	mges, err := model.UnpackSqliTransmission(reader)
+	if err != nil {
+		return fmt.Errorf("failed to unpack SqliInfo response packages, err: %T", err)
+	}
+	context.SetMetaData("sqliprepareDescribe", mges)
 	b, err := ctx.MetaData("sqliprepareDescribe")
 	if err != nil {
 		return err
@@ -647,7 +742,8 @@ func (h *prepareDescribeHandler) Handle(filter *QueryFilter, ctx services.Contex
 	}).Encode(buff)
 	buff = (&pgproto3.NoData{}).Encode(buff)
 	buff = (&pgproto3.ReadyForQuery{TxStatus: 'I'}).Encode(buff)
-	SendPackage("front", buff, ctx)
+	ctx.Data().Buffer = buff
+	context.front.Write(ctx.Data().Buffer)
 
 	err = ctx.SetMetaData("QueryStage", "QueryPDescribeDone")
 	filter.SetHandler(&cidesbatchHandler{})
@@ -656,11 +752,24 @@ func (h *prepareDescribeHandler) Handle(filter *QueryFilter, ctx services.Contex
 }
 
 func (h *cidesbatchHandler) Handle(filter *QueryFilter, ctx services.Context) error {
+	if ctx.Data().Forward != model.ClientToServer {
+		return fmt.Errorf(" The error direction of the message is %T", model.ServerToClient)
+	}
+	//buff := bytes.NewBuffer(ctx.Data().Buffer)
 	context, ok := ctx.(*Context)
 	if !ok {
 		return fmt.Errorf("unknown context type: %T", ctx)
 	}
-	ClientToServre("pg", ctx, "cidesbatch")
+	parser := model.NewPgClientParser()
+	_, err := parser.Append(ctx.Data().Buffer)
+	if err != nil {
+		return fmt.Errorf("failed to append parser buffer, err: %T", err)
+	}
+	msg, err := parser.ParseMessage()
+	if err != nil {
+		return fmt.Errorf("failed to unpack ParseMessage, err: %T", err)
+	}
+	err = context.SetMetaData("cidesbatch", msg)
 	b, err := ctx.MetaData("cidesbatch")
 	if err != nil {
 		return err
@@ -677,7 +786,7 @@ func (h *cidesbatchHandler) Handle(filter *QueryFilter, ctx services.Context) er
 			pgbind := b.(model.PgTransmission)[j].(model.PgCommand).(*pgproto3.Bind)
 			err = ctx.SetMetaData("Bindcondition", len(pgbind.ParameterFormatCodes))
 			binddata := pgbind.Parameters
-			a, err := context.MetaData("Bindtype")
+			a, err := ctx.MetaData("Bindtype")
 			var datebindint uint16
 			var datebindchar string
 			for c, t := range a.([]uint32) {
@@ -712,14 +821,15 @@ func (h *cidesbatchHandler) Handle(filter *QueryFilter, ctx services.Context) er
 	var transmission model.SqliTransmission
 	transmission = []model.SqliCommand{id, cidescribe, eot}
 	buff, err := transmission.Pack()
-	SendPackage("backend", buff, ctx)
+	ctx.Data().Buffer = buff
+	context.backend.Write(ctx.Data().Buffer)
 	err = ctx.SetMetaData("QueryStage", "QueryExecuteDone")
 	filter.SetHandler(&executeHandler{})
 	if err != nil {
 		return err
 	}
 
-	v, err := context.MetaData("Condition")
+	v, err := ctx.MetaData("Condition")
 	if v.(string) == "select" || v.(string) == "SELECT" {
 		err = ctx.SetMetaData("QueryStage", "QueryOpen")
 		filter.SetHandler(&cidescribeSelectHandler{})
